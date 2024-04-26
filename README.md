@@ -10,6 +10,7 @@ python3 main.py
 
 ## Example output (first 100 days)
 
+```
 Day 0
 Digger has a chance of buying an apple.
 Digger has a chance of consuming an apple.
@@ -2210,4 +2211,4 @@ Carrier Y has a chance of buying water.
 Carrier Y has a chance of buying fertilizer.
 Carrier Y has a chance of selling water.
 City: B  Money: $98   Fullness: 89  Prices: {'water': '$0.91', 'fertilizer': '$0.84', 'apple': '$0.9'} Inventory: {'water': 1, 'fertilizer': 3, 'apple': 0} Action: Carrier Y bought fertilizer from Carrier X for 0.7923852252123496.
-
+```
