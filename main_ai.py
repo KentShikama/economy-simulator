@@ -19,10 +19,7 @@ class FarmerPolicyNetwork(nn.Module):
             nn.ReLU(),
         )
         # Price Setting Head (Continuous Outputs)
-        self.price_head = nn.Sequential(
-            nn.Linear(64, 3),   # Outputs for prices (apple, water, fertilizer)
-            nn.Sigmoid(),       # Normalize outputs between 0 and 1
-        )
+        self.price_head = nn.Linear(64, 3)  # Outputs for log prices (apple, water, fertilizer)
         # Action Selection Head (Discrete Outputs)
         self.action_head = nn.Sequential(
             nn.Linear(64, 5),   # Number of possible actions (grow, buy water, buy fertilizer, sell, consume)
@@ -134,10 +131,9 @@ class Farmer(Person):
         action = action_dist.sample()
         # Store the log probability for training
         log_prob = action_dist.log_prob(action)
-        # Convert prices to actual values
-        total_money = self.get_total_circulating_money([self] + other_people)
-        normalized_prices = prices.detach().numpy()[0]
-        new_prices = normalized_prices * total_money
+        # Convert outputs to actual prices by exponentiating
+        log_prices = prices.detach().numpy()[0]
+        new_prices = np.exp(log_prices)
         # Update Farmer's prices
         self.update_prices(new_prices)
         # Map the action index to an action string
@@ -207,12 +203,12 @@ class Farmer(Person):
         # Scale fullness between 0 and 1
         normalized_fullness = self.fullness / 100.0
 
-        # Normalize own prices
-        normalized_price_apple = self.prices['apple'] / total_money
-        normalized_price_water = self.prices['water'] / total_money
-        normalized_price_fertilizer = self.prices['fertilizer'] / total_money
+        # Log-transform own prices
+        log_price_apple = np.log(np.clip(self.prices['apple'], 1e-6, 1e6))
+        log_price_water = np.log(np.clip(self.prices['water'], 1e-6, 1e6))
+        log_price_fertilizer = np.log(np.clip(self.prices['fertilizer'], 1e-6, 1e6))
 
-        # Normalize market minimum prices
+        # Log-transform market minimum prices
         market_min_price_apple = min(
             [p.prices['apple'] for p in other_people if p.inventory['apple'] > 0 and p.city == self.city],
             default=self.prices['apple']
@@ -226,9 +222,9 @@ class Farmer(Person):
             default=self.prices['fertilizer']
         )
 
-        normalized_market_min_price_apple = market_min_price_apple / total_money
-        normalized_market_min_price_water = market_min_price_water / total_money
-        normalized_market_min_price_fertilizer = market_min_price_fertilizer / total_money
+        log_market_min_price_apple = np.log(np.clip(market_min_price_apple, 1e-6, 1e6))
+        log_market_min_price_water = np.log(np.clip(market_min_price_water, 1e-6, 1e6))
+        log_market_min_price_fertilizer = np.log(np.clip(market_min_price_fertilizer, 1e-6, 1e6))
 
         # Construct the state vector
         state = [
@@ -237,12 +233,12 @@ class Farmer(Person):
             log_inventory_fertilizer,
             normalized_money,
             normalized_fullness,
-            normalized_price_apple,
-            normalized_price_water,
-            normalized_price_fertilizer,
-            normalized_market_min_price_apple,
-            normalized_market_min_price_water,
-            normalized_market_min_price_fertilizer,
+            log_price_apple,
+            log_price_water,
+            log_price_fertilizer,
+            log_market_min_price_apple,
+            log_market_min_price_water,
+            log_market_min_price_fertilizer,
         ]
 
         return state
@@ -287,7 +283,6 @@ class WaterCollector(Person):
         for i, action in enumerate(actions):
             if action == "consume_apple":
                 if self.inventory["apple"] > 0:
-                    print(f"{self.name} has a chance of consuming an apple.")
                     weights[i] = max(1, 80 - self.fullness)
             elif action == "buy_apple":
                 other_people_in_city_with_apple = [person for person in other_people_in_city if
@@ -297,11 +292,9 @@ class WaterCollector(Person):
                     can_afford = self.money >= seller.prices["apple"]
                     is_not_full = self.fullness < 100
                     if can_afford and is_not_full:
-                        print(f"{self.name} has a chance of buying an apple.")
                         weights[i] = (100 - self.fullness)
             elif action == "sell_water":
                 if self.inventory["water"] > 0:
-                    print(f"{self.name} has a chance of selling water.")
                     weights[i] = (self.inventory["water"] // 10) + 1
             elif action == "collect_water":
                 if self.inventory["water"] == 0:
@@ -336,7 +329,6 @@ class FertilizerCreator(Person):
         for i, action in enumerate(actions):
             if action == "consume_apple":
                 if self.inventory["apple"] > 0:
-                    print(f"{self.name} has a chance of consuming an apple.")
                     weights[i] = max(1, 80 - self.fullness)
             elif action == "buy_apple":
                 other_people_in_city_with_apple = [person for person in other_people_in_city if
@@ -346,11 +338,9 @@ class FertilizerCreator(Person):
                     can_afford = self.money >= seller.prices["apple"]
                     is_not_full = self.fullness < 100
                     if can_afford and is_not_full:
-                        print(f"{self.name} has a chance of buying an apple.")
                         weights[i] = (100 - self.fullness)
             elif action == "sell_fertilizer":
                 if self.inventory["fertilizer"] > 0:
-                    print(f"{self.name} has a chance of selling fertilizer.")
                     weights[i] = (self.inventory["fertilizer"] // 10) + 1
             elif action == "produce_fertilizer":
                 if self.inventory["fertilizer"] == 0:
@@ -361,6 +351,7 @@ class FertilizerCreator(Person):
         self.inventory['fertilizer'] += 10
         self.prices['fertilizer'] *= 0.95
         return f"{self.name} produced 10 units of fertilizer."
+
 
 @dataclass
 class Peddler(Person):
@@ -392,7 +383,6 @@ class Peddler(Person):
         for i, action in enumerate(actions):
             if action == "consume_apple":
                 if self.inventory["apple"] > 0:
-                    print(f"{self.name} has a chance of consuming an apple.")
                     weights[i] = max(1, 80 - self.fullness)
             elif 'buy' in action:
                 item = action.split('_')[1]
@@ -405,7 +395,6 @@ class Peddler(Person):
                             sum([person.prices[item] for person in other_people_in_other_cities]) / len(
                         other_people_in_other_cities))
                     if can_afford and is_profitable:
-                        print(f"{self.name} has a chance of buying {item}.")
                         weights[i] = 1
             elif 'sell' in action:
                 item = action.split('_')[1]
@@ -416,12 +405,10 @@ class Peddler(Person):
                             sum([person.prices[item] for person in other_people_in_other_cities]) / len(
                         other_people_in_other_cities))
                     if is_profitable:
-                        print(f"{self.name} has a chance of selling {item}.")
                         weights[i] = 1
             elif 'move' in action:
                 city = action.split('_')[1]
                 if city != self.city:
-                    print(f"{self.name} has a chance of moving to {city}.")
                     weights[i] = 1
         return weights
 
@@ -434,8 +421,7 @@ class Peddler(Person):
 farmer = Farmer(name="Farmer Joe", city="C", money=100)
 
 # Run the simulation for 1000 episodes
-for episode in range(1, 101):
-    print(f"Episode {episode}")
+for episode in range(1, 10001):
     # Initialize other people
     people = [
         WaterCollector(name="Digger", city="A", money=100),
@@ -450,11 +436,11 @@ for episode in range(1, 101):
     while True:
         day += 1
         # Simulate a day
-        print(f"Day {day}")
+        # print(f"Day {day}")
         for person in people[:]:  # Use a copy of the list to avoid modification issues
             if person.fullness <= 0:
-                print(f"{person.name} has died of hunger.")
-                print(f"Episode ended at day {day}.")
+                # print(f"{person.name} has died of hunger.")
+                print(f"Episode {episode} ended at day {day}.")
                 break  # End the episode if someone dies
             person.fullness -= 1
             if person == farmer:
@@ -462,10 +448,7 @@ for episode in range(1, 101):
             else:
                 result = person.act([p for p in people if p != person])
             rounded_prices = {k: f"${round(v, 2)}" for k, v in person.prices.items()}
-            print(
-                f"City: {person.city:<2} Money: ${int(person.money):<4} Fullness: {person.fullness:<3} Prices: {rounded_prices} Inventory: {person.inventory} Action: {result}"
-            )
+            # print(f"Person: {person.name} City: {person.city:<2} Money: ${int(person.money):<4} Fullness: {person.fullness:<3} Prices: {rounded_prices} Inventory: {person.inventory} Action: {result}")
         else:
             continue  # Continue if the inner loop wasn't broken
-        break  # Break if the inner loop was broken (Farmer died)
-    print(f"End of Episode {episode}\n")
+        break  # Break if the inner loop was broken (someone died)
