@@ -160,6 +160,7 @@ class FertilizerCreator(Person):
         return f"{self.name} produced 10 units of fertilizer."
 
 
+# TODO: Implement the Farmer and Peddler classes
 @dataclass
 class Farmer(Person):
     def act(self, other_people: List['Person']):
@@ -167,7 +168,7 @@ class Farmer(Person):
         weights = self.build_weights(actions, other_people)
         try:
             action = random.choices(actions, weights=weights, k=1)[0]
-        except IndexError:
+        except ValueError:
             action = 'consume_apple'
         if action == 'grow_apple':
             return self.grow_apple()

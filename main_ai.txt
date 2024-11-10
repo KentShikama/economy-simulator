@@ -1,0 +1,30 @@
+Basically continue trying to build out this continuous + discrete mix.
+
+import torch
+import torch.nn as nn
+
+class FarmerPolicyNetwork(nn.Module):
+    def __init__(self):
+        super(FarmerPolicyNetwork, self).__init__()
+        self.shared_fc = nn.Sequential(
+            nn.Linear(state_size, 128),
+            nn.ReLU(),
+            nn.Linear(128, 64),
+            nn.ReLU(),
+        )
+        # Price Setting Head (Continuous Outputs)
+        self.price_head = nn.Sequential(
+            nn.Linear(64, 3),   # Outputs for prices (apple, water, fertilizer)
+            nn.Sigmoid(),       # Normalize outputs between 0 and 1
+        )
+        # Action Selection Head (Discrete Outputs)
+        self.action_head = nn.Sequential(
+            nn.Linear(64, action_size),  # Number of possible actions
+            nn.Softmax(dim=-1),          # Convert outputs to probabilities
+        )
+
+    def forward(self, x):
+        shared_output = self.shared_fc(x)
+        prices = self.price_head(shared_output)
+        action_probs = self.action_head(shared_output)
+        return prices, action_probs
