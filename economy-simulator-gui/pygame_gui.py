@@ -1,5 +1,6 @@
 import pygame
 import sys
+import math
 from simulator import EconomySimulator
 
 # Initialize Pygame
@@ -153,11 +154,19 @@ class MapView:
         # Draw cities
         for name, data in self.simulator.cities.items():
             # Draw city circle
-            pygame.draw.circle(screen, DARK_GRAY, (data['x'], data['y']), 20)
+            pygame.draw.circle(screen, DARK_GRAY, (data['x'], data['y']), 30)
             # Draw city name
             text = self.font.render(name, True, WHITE)
             text_rect = text.get_rect(center=(data['x'], data['y']))
             screen.blit(text, text_rect)
+
+        # Group people by location to handle overlaps
+        people_in_cities = {}
+        for p in self.simulator.people:
+            if p.city:
+                if p.city not in people_in_cities:
+                    people_in_cities[p.city] = []
+                people_in_cities[p.city].append(p)
 
         # Draw people
         for person in self.simulator.people:
@@ -165,12 +174,26 @@ class MapView:
             color = TYPE_COLORS.get(type_name, BLACK)
             
             pos = (int(person.x), int(person.y))
+
+            if person.city: # Person is in a city, not moving
+                city_people = people_in_cities[person.city]
+                person_index = city_people.index(person)
+                num_people_in_city = len(city_people)
+                
+                # Arrange people in a circle inside the city
+                angle = (2 * math.pi * person_index) / num_people_in_city if num_people_in_city > 0 else 0
+                radius = 15 # radius for arranging people
+                offset_x = radius * math.cos(angle)
+                offset_y = radius * math.sin(angle)
+                
+                pos = (int(person.x + offset_x), int(person.y + offset_y))
+
             pygame.draw.circle(screen, color, pos, 8)
             pygame.draw.circle(screen, BLACK, pos, 8, 1)
             
             # Person name
             name_text = self.small_font.render(person.name, True, BLACK)
-            screen.blit(name_text, (person.x + 12, person.y - 8))
+            screen.blit(name_text, (pos[0] + 12, pos[1] - 8))
 
 
 class EconomySimulatorGame:
@@ -299,8 +322,8 @@ class EconomySimulatorGame:
         for entry in self.action_log[-12:]:  # Show last 12 entries
             if y < log_y + 295:
                 # Truncate long entries
-                if len(entry) > 52:
-                    entry = entry[:49] + "..."
+                if len(entry) > 65:
+                    entry = entry[:62] + "..."
                 text = self.small_font.render(entry, True, BLACK)
                 self.screen.blit(text, (log_x + 10, y))
                 y += 20
