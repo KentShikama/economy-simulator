@@ -8,9 +8,29 @@ class Person:
     name: str
     city: str
     money: float
+    x: float = 0.0
+    y: float = 0.0
+    destination: str = None
+    speed: float = 5.0
     fullness: int = 100
     inventory: Dict[str, int] = field(default_factory=lambda: {'water': 0, 'fertilizer': 0, 'apple': 10})
     prices: Dict[str, float] = field(default_factory=lambda: {'water': 1, 'fertilizer': 1, 'apple': 1})
+
+    def update_movement(self, cities):
+        if self.destination:
+            dest_city_coords = cities[self.destination]
+            dx = dest_city_coords['x'] - self.x
+            dy = dest_city_coords['y'] - self.y
+            distance = (dx**2 + dy**2)**0.5
+
+            if distance < self.speed:
+                self.x = dest_city_coords['x']
+                self.y = dest_city_coords['y']
+                self.city = self.destination
+                self.destination = None
+            else:
+                self.x += (dx / distance) * self.speed
+                self.y += (dy / distance) * self.speed
 
     def consume(self, item):
         if self.inventory[item] > 0:
@@ -275,17 +295,25 @@ class Peddler(Person):
                         weights[i] = 1
             elif 'move' in action:
                 city = action.split('_')[1]
-                if city != self.city:
+                if city != self.city and not self.destination:
                     weights[i] = 1
         return weights
 
     def move(self, city):
-        self.city = city
-        return f"{self.name} moved to {self.city}."
+        if self.city != city:
+            self.destination = city
+            self.city = None
+            return f"{self.name} started moving to {city}."
+        return f"{self.name} is already in {city}."
 
 
 class EconomySimulator:
     def __init__(self):
+        self.cities = {
+            'A': {'x': 860, 'y': 150},
+            'B': {'x': 1280, 'y': 150},
+            'C': {'x': 1070, 'y': 380}
+        }
         self.people = [
             WaterCollector(name="Digger", city="A", money=100),
             FertilizerCreator(name="Dirt", city="B", money=100),
@@ -293,15 +321,35 @@ class EconomySimulator:
             Peddler(name="Carrier X", city="A", money=100),
             Peddler(name="Carrier Y", city="B", money=100),
         ]
+        for person in self.people:
+            if person.city in self.cities:
+                person.x = self.cities[person.city]['x']
+                person.y = self.cities[person.city]['y']
+
         self.day = 0
         self.is_running = False
         self.action_log = []
+        self.ticks_per_day = 20
+        self.tick_count = 0
+
+    def tick(self):
+        for person in self.people:
+            person.update_movement(self.cities)
+
+        self.tick_count += 1
+        if self.tick_count >= self.ticks_per_day:
+            self.tick_count = 0
+            return self.simulate_day()
+        
+        return []
 
     def simulate_day(self):
         self.day += 1
         day_actions = []
         
         for person in self.people:
+            if person.destination:  # Don't act while moving
+                continue
             if person.fullness <= 0:
                 raise Exception(f"{person.name} has died of hunger.")
             person.fullness -= 1

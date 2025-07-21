@@ -138,42 +138,39 @@ class PersonCard:
             y_offset += 15
 
 
-class CityView:
-    def __init__(self, x, y, city_name):
-        self.x = x
-        self.y = y
-        self.city_name = city_name
-        self.width = 180
-        self.height = 120
-        self.font = pygame.font.Font(None, 20)
-        
-    def draw(self, screen, people_in_city):
-        # Background
-        pygame.draw.rect(screen, LIGHT_GRAY, (self.x, self.y, self.width, self.height))
-        pygame.draw.rect(screen, BLACK, (self.x, self.y, self.width, self.height), 2)
-        
-        # City name
-        title = self.font.render(f"City {self.city_name}", True, BLACK)
-        screen.blit(title, (self.x + self.width//2 - title.get_width()//2, self.y + 10))
-        
-        # Draw people icons
-        y_offset = self.y + 40
-        for i, person in enumerate(people_in_city):
-            if i >= 5:  # Max 5 people shown
-                break
-            
+class MapView:
+    def __init__(self, x, y, width, height, simulator):
+        self.rect = pygame.Rect(x, y, width, height)
+        self.simulator = simulator
+        self.font = pygame.font.Font(None, 24)
+        self.small_font = pygame.font.Font(None, 16)
+
+    def draw(self, screen):
+        # Draw map background
+        pygame.draw.rect(screen, LIGHT_GRAY, self.rect)
+        pygame.draw.rect(screen, BLACK, self.rect, 2)
+
+        # Draw cities
+        for name, data in self.simulator.cities.items():
+            # Draw city circle
+            pygame.draw.circle(screen, DARK_GRAY, (data['x'], data['y']), 20)
+            # Draw city name
+            text = self.font.render(name, True, WHITE)
+            text_rect = text.get_rect(center=(data['x'], data['y']))
+            screen.blit(text, text_rect)
+
+        # Draw people
+        for person in self.simulator.people:
             type_name = type(person).__name__
             color = TYPE_COLORS.get(type_name, BLACK)
             
-            # Person dot
-            pygame.draw.circle(screen, color, (self.x + 20, y_offset), 8)
+            pos = (int(person.x), int(person.y))
+            pygame.draw.circle(screen, color, pos, 8)
+            pygame.draw.circle(screen, BLACK, pos, 8, 1)
             
             # Person name
-            font_small = pygame.font.Font(None, 16)
-            name_text = font_small.render(person.name, True, BLACK)
-            screen.blit(name_text, (self.x + 35, y_offset - 8))
-            
-            y_offset += 20
+            name_text = self.small_font.render(person.name, True, BLACK)
+            screen.blit(name_text, (person.x + 12, person.y - 8))
 
 
 class EconomySimulatorGame:
@@ -185,7 +182,7 @@ class EconomySimulatorGame:
         self.simulator = EconomySimulator()
         self.running = True
         self.paused = True
-        self.simulation_speed = 1000  # milliseconds between steps
+        self.simulation_speed = 50  # milliseconds between steps
         self.last_step_time = 0
         
         # UI elements
@@ -202,12 +199,8 @@ class EconomySimulatorGame:
         self.action_log = []
         self.max_log_entries = 20
         
-        # City views
-        self.city_views = {
-            'A': CityView(960, 50, 'A'),
-            'B': CityView(960, 180, 'B'),
-            'C': CityView(960, 310, 'C')
-        }
+        # Map view
+        self.map_view = MapView(740, 50, 640, 380, self.simulator)
         
     def handle_events(self):
         for event in pygame.event.get():
@@ -234,7 +227,7 @@ class EconomySimulatorGame:
     
     def step_simulation(self):
         try:
-            actions = self.simulator.simulate_day()
+            actions = self.simulator.tick()
             
             # Add actions to log
             for action in actions:
@@ -289,13 +282,11 @@ class EconomySimulatorGame:
             card = PersonCard(x, y, person)
             card.draw(self.screen)
         
-        # Draw city views
-        for city_name, city_view in self.city_views.items():
-            people_in_city = [p for p in self.simulator.people if p.city == city_name]
-            city_view.draw(self.screen, people_in_city)
+        # Draw map view
+        self.map_view.draw(self.screen)
         
         # Draw action log
-        log_x = 960
+        log_x = 740
         log_y = 440
         log_title = self.font.render("Action Log", True, BLACK)
         self.screen.blit(log_title, (log_x, log_y))
