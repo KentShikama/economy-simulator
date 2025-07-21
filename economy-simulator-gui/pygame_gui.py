@@ -153,12 +153,16 @@ class MapView:
 
         # Draw cities
         for name, data in self.simulator.cities.items():
-            # Draw city circle
-            pygame.draw.circle(screen, DARK_GRAY, (data['x'], data['y']), 30)
-            # Draw city name
-            text = self.font.render(name, True, WHITE)
-            text_rect = text.get_rect(center=(data['x'], data['y']))
+            city_size = 60
+            city_rect = pygame.Rect(data['x'] - city_size // 2, data['y'] - city_size // 2, city_size, city_size)
+
+            # Draw city name above the square
+            text = self.font.render(name, True, BLACK)
+            text_rect = text.get_rect(centerx=data['x'], bottom=city_rect.top - 5)
             screen.blit(text, text_rect)
+
+            # Draw city square
+            pygame.draw.rect(screen, DARK_GRAY, city_rect)
 
         # Group people by location to handle overlaps
         people_in_cities = {}
@@ -182,7 +186,7 @@ class MapView:
                 
                 # Arrange people in a circle inside the city
                 angle = (2 * math.pi * person_index) / num_people_in_city if num_people_in_city > 0 else 0
-                radius = 15 # radius for arranging people
+                radius = 20 # radius for arranging people
                 offset_x = radius * math.cos(angle)
                 offset_y = radius * math.sin(angle)
                 
