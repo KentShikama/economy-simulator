@@ -348,26 +348,34 @@ class EconomySimulator:
         day_actions = []
         
         for person in self.people:
-            if person.destination:  # Don't act while moving
-                continue
             if person.fullness <= 0:
                 raise Exception(f"{person.name} has died of hunger.")
             person.fullness -= 1
-            result = person.act([p for p in self.people if p != person])
-            day_actions.append({
-                'person': person.name,
-                'city': person.city,
-                'money': person.money,
-                'fullness': person.fullness,
-                'prices': dict(person.prices),
-                'inventory': dict(person.inventory),
-                'action': result
-            })
+
+            result = None
+            if person.destination:  # Don't act while moving
+                # but they can still consume
+                if person.fullness < 25 and person.inventory['apple'] > 0:
+                    result = person.consume('apple')
+            else:
+                result = person.act([p for p in self.people if p != person])
+
+            if result:
+                day_actions.append({
+                    'person': person.name,
+                    'city': person.city,
+                    'money': person.money,
+                    'fullness': person.fullness,
+                    'prices': dict(person.prices),
+                    'inventory': dict(person.inventory),
+                    'action': result
+                })
         
-        self.action_log.append({
-            'day': self.day,
-            'actions': day_actions
-        })
+        if day_actions:
+            self.action_log.append({
+                'day': self.day,
+                'actions': day_actions
+            })
         
         return day_actions
 
