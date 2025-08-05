@@ -2,6 +2,9 @@ import random
 from dataclasses import dataclass, field
 from typing import Dict, List
 
+# Constant for fullness addition when consuming items
+FULLNESS_ADDITION = 20
+
 
 @dataclass
 class Person:
@@ -15,7 +18,7 @@ class Person:
     def consume(self, item):
         if self.inventory[item] > 0:
             self.inventory[item] -= 1
-            self.fullness = min(100, self.fullness + 20)
+            self.fullness = min(100, self.fullness + FULLNESS_ADDITION)
             return f"{self.name} consumed {item}."
         return f"{self.name} has no {item} to consume."
 
@@ -85,7 +88,7 @@ class WaterCollector(Person):
             if action == "consume_apple":
                 if self.inventory["apple"] > 0:
                     print(f"{self.name} has a chance of consuming an apple.")
-                    weights[i] = max(1, 80 - self.fullness)
+                    weights[i] = max(1, 100 - FULLNESS_ADDITION - self.fullness)
             elif action == "buy_apple":
                 other_people_in_city_with_apple = [person for person in other_people_in_city if
                                                    person.inventory["apple"] > 0]
@@ -134,7 +137,7 @@ class FertilizerCreator(Person):
             if action == "consume_apple":
                 if self.inventory["apple"] > 0:
                     print(f"{self.name} has a chance of consuming an apple.")
-                    weights[i] = max(1, 80 - self.fullness)
+                    weights[i] = max(1, 100 - FULLNESS_ADDITION - self.fullness)
             elif action == "buy_apple":
                 other_people_in_city_with_apple = [person for person in other_people_in_city if
                                                    person.inventory["apple"] > 0]
@@ -189,7 +192,7 @@ class Farmer(Person):
             if action == "consume_apple":
                 if self.inventory["apple"] > 0:
                     print(f"{self.name} has a chance of consuming an apple.")
-                    weights[i] = max(1, 80 - self.fullness)
+                    weights[i] = max(1, 100 - FULLNESS_ADDITION - self.fullness)
             elif action == "buy_water":
                 other_people_in_city_with_water = [person for person in other_people_in_city if
                                                    person.inventory["water"] > 0]
@@ -263,7 +266,7 @@ class Peddler(Person):
             if action == "consume_apple":
                 if self.inventory["apple"] > 0:
                     print(f"{self.name} has a chance of consuming an apple.")
-                    weights[i] = max(1, 80 - self.fullness)
+                    weights[i] = max(1, 100 - FULLNESS_ADDITION - self.fullness)
             elif 'buy' in action:
                 item = action.split('_')[1]
                 other_people_in_city_with_item = [person for person in other_people_in_city if
