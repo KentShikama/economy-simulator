@@ -7,7 +7,7 @@ Simulates an economy of three cities with a total of five people. The economy co
 
 ### Text only version
 ```bash
-python3 main.py
+python3 economy-simulator-gui/simulator.py
 ```
 
 ### GUI version

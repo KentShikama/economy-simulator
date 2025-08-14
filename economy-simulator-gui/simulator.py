@@ -5,6 +5,9 @@ from typing import Dict, List
 # Constant for fullness addition when consuming items
 FULLNESS_ADDITION = 20
 
+# Price adjustment constants
+PRICE_ADJUSTMENT_RATE = 0.1
+
 
 @dataclass
 class Person:
@@ -48,13 +51,13 @@ class Person:
             seller = min(sellers, key=lambda x: x.prices[item])
             price = seller.prices[item]
             if price > self.prices[item]:
-                self.prices[item] *= 1.05
+                self.prices[item] *= (1 + PRICE_ADJUSTMENT_RATE)
                 return f"{self.name} refuses to buy {item} from {seller.name} because the price is too high."
             elif self.money >= price:
                 self.money -= price
                 seller.money += price
-                self.prices[item] *= 0.95
-                seller.prices[item] *= 1.05
+                self.prices[item] *= (1 - PRICE_ADJUSTMENT_RATE)
+                seller.prices[item] *= (1 + PRICE_ADJUSTMENT_RATE)
                 self.inventory[item] += 1
                 seller.inventory[item] -= 1
                 return f"{self.name} bought {item} from {seller.name} for {price}."
@@ -71,13 +74,13 @@ class Person:
             buyer = max(buyers, key=lambda x: x.prices[item])
             price = buyer.prices[item]
             if price < self.prices[item]:
-                self.prices[item] *= 0.95
+                self.prices[item] *= (1 - PRICE_ADJUSTMENT_RATE)
                 return f"{self.name} refuses to sell {item} to {buyer.name} because the price is too low."
             if buyer.money >= price:
                 self.money += price
                 buyer.money -= price
-                self.prices[item] *= 1.05
-                buyer.prices[item] *= 0.95
+                self.prices[item] *= (1 + PRICE_ADJUSTMENT_RATE)
+                buyer.prices[item] *= (1 - PRICE_ADJUSTMENT_RATE)
                 self.inventory[item] -= 1
                 buyer.inventory[item] += 1
                 return f"{self.name} sold {item} to {buyer.name} for {price}."
@@ -88,7 +91,7 @@ class Person:
 @dataclass
 class WaterCollector(Person):
     def act(self, other_people: List['Person']):
-        actions = ['collect_water', 'sell_water', 'buy_apple', 'consume_apple']
+        actions = ['collect_water', 'sell_water', 'buy_apple', 'consume_apple', 'do_nothing']
         weights = self.build_weights(actions, other_people)
         action = random.choices(actions, weights=weights, k=1)[0]
         if action == 'collect_water':
@@ -107,7 +110,7 @@ class WaterCollector(Person):
         for i, action in enumerate(actions):
             if action == "consume_apple":
                 if self.inventory["apple"] > 0:
-                    weights[i] = max(1, 100 - FULLNESS_ADDITION - self.fullness)
+                    weights[i] = max(0, 80 - self.fullness)
             elif action == "buy_apple":
                 other_people_in_city_with_apple = [person for person in other_people_in_city if
                                                    person.inventory["apple"] > 0]
@@ -119,15 +122,14 @@ class WaterCollector(Person):
                         weights[i] = (100 - self.fullness)
             elif action == "sell_water":
                 if self.inventory["water"] > 0:
-                    weights[i] = (self.inventory["water"] // 10) + 1
+                    weights[i] = max(10, (self.inventory["water"] // 10) + 1)
             elif action == "collect_water":
-                if self.inventory["water"] == 0:
-                    weights[i] = 1
+                weights[i] = 1
         return weights
 
     def collect_water(self):
         self.inventory['water'] += 10
-        self.prices['water'] *= 0.95
+        self.prices['water'] *= (1 - PRICE_ADJUSTMENT_RATE)
         return f"{self.name} collected 10 units of water."
 
 
@@ -153,7 +155,7 @@ class FertilizerCreator(Person):
         for i, action in enumerate(actions):
             if action == "consume_apple":
                 if self.inventory["apple"] > 0:
-                    weights[i] = max(1, 100 - FULLNESS_ADDITION - self.fullness)
+                    weights[i] = max(0, 80 - self.fullness)
             elif action == "buy_apple":
                 other_people_in_city_with_apple = [person for person in other_people_in_city if
                                                    person.inventory["apple"] > 0]
@@ -165,22 +167,21 @@ class FertilizerCreator(Person):
                         weights[i] = (100 - self.fullness)
             elif action == "sell_fertilizer":
                 if self.inventory["fertilizer"] > 0:
-                    weights[i] = (self.inventory["fertilizer"] // 10) + 1
+                    weights[i] = max(10, (self.inventory["fertilizer"] // 10) + 1)
             elif action == "produce_fertilizer":
-                if self.inventory["fertilizer"] == 0:
-                    weights[i] = 1
+                weights[i] = 1
         return weights
 
     def produce_fertilizer(self):
         self.inventory['fertilizer'] += 10
-        self.prices['fertilizer'] *= 0.95
+        self.prices['fertilizer'] *= (1 - PRICE_ADJUSTMENT_RATE)
         return f"{self.name} produced 10 units of fertilizer."
 
 
 @dataclass
 class Farmer(Person):
     def act(self, other_people: List['Person']):
-        actions = ['grow_apple', 'buy_water', 'buy_fertilizer', 'sell_apple', 'consume_apple']
+        actions = ['grow_apple', 'buy_water', 'buy_fertilizer', 'sell_apple', 'consume_apple', 'do_nothing']
         weights = self.build_weights(actions, other_people)
         try:
             action = random.choices(actions, weights=weights, k=1)[0]
@@ -196,6 +197,8 @@ class Farmer(Person):
             return self.sell('apple', other_people)
         elif action == 'consume_apple':
             return self.consume('apple')
+        elif action == 'do_nothing':
+            return f"{self.name} is resting."
         return "Invalid action"
 
     def build_weights(self, actions, other_people):
@@ -204,7 +207,7 @@ class Farmer(Person):
         for i, action in enumerate(actions):
             if action == "consume_apple":
                 if self.inventory["apple"] > 0:
-                    weights[i] = max(1, 100 - FULLNESS_ADDITION - self.fullness)
+                    weights[i] = max(0, 80 - self.fullness)
             elif action == "buy_water":
                 other_people_in_city_with_water = [person for person in other_people_in_city if
                                                    person.inventory["water"] > 0]
@@ -229,6 +232,8 @@ class Farmer(Person):
             elif action == "grow_apple":
                 if self.inventory["water"] > 0 and self.inventory["fertilizer"] > 0:
                     weights[i] = 1
+            elif action == "do_nothing":
+                weights[i] = 1
         return weights
 
     def grow_apple(self):
@@ -236,9 +241,9 @@ class Farmer(Person):
             self.inventory['water'] -= 1
             self.inventory['fertilizer'] -= 1
             self.inventory['apple'] += 10
-            self.prices['water'] *= 1.05
-            self.prices['fertilizer'] *= 1.05
-            self.prices['apple'] *= 0.95
+            self.prices['water'] *= (1 + PRICE_ADJUSTMENT_RATE)
+            self.prices['fertilizer'] *= (1 + PRICE_ADJUSTMENT_RATE)
+            self.prices['apple'] *= (1 - PRICE_ADJUSTMENT_RATE)
             return f"{self.name} grew 10 units of apple."
         return f"{self.name} does not have enough resources to grow apples."
 
@@ -247,7 +252,7 @@ class Farmer(Person):
 class Peddler(Person):
     def act(self, other_people: List['Person']):
         actions = ['move_A', 'move_B', 'move_C', 'buy_water', 'buy_fertilizer', 'buy_apple', 'sell_water',
-                   'sell_fertilizer', 'sell_apple', 'consume_apple']
+                   'sell_fertilizer', 'sell_apple', 'consume_apple', 'do_nothing']
         weights = self.build_weights(actions, other_people)
         try:
             action = random.choices(actions, weights=weights, k=1)[0]
@@ -273,7 +278,7 @@ class Peddler(Person):
         for i, action in enumerate(actions):
             if action == "consume_apple":
                 if self.inventory["apple"] > 0:
-                    weights[i] = max(1, 100 - FULLNESS_ADDITION - self.fullness)
+                    weights[i] = max(0, 80 - self.fullness)
             elif 'buy' in action:
                 item = action.split('_')[1]
                 other_people_in_city_with_item = [person for person in other_people_in_city if
@@ -384,3 +389,40 @@ class EconomySimulator:
 
     def reset(self):
         self.__init__()
+
+
+def main():
+    """Run the simulator in text-only mode"""
+    print("Economy Simulator - Text Mode")
+    print("=" * 50)
+    
+    simulator = EconomySimulator()
+    
+    try:
+        while True:
+            # Run one full day (20 ticks)
+            for _ in range(simulator.ticks_per_day):
+                actions = simulator.tick()
+                
+                # Print actions if it's the end of a day
+                if actions:
+                    print(f"\nDay {simulator.day}:")
+                    print("-" * 30)
+                    for action in actions:
+                        print(f"  {action['action']}")
+                        print(f"    City: {action['city']}, Money: ${action['money']:.2f}, Fullness: {action['fullness']}%")
+                    
+            # Add a small delay to make it readable
+            import time
+            time.sleep(1)
+            
+    except KeyboardInterrupt:
+        print("\n\nSimulation stopped by user.")
+        print(f"Final day: {simulator.day}")
+    except Exception as e:
+        print(f"\nERROR: {str(e)}")
+        print(f"Simulation ended on day {simulator.day}")
+
+
+if __name__ == "__main__":
+    main()

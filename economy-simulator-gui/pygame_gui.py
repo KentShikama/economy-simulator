@@ -209,7 +209,7 @@ class EconomySimulatorGame:
         self.simulator = EconomySimulator()
         self.running = True
         self.paused = True
-        self.simulation_speed = 50  # milliseconds between steps
+        self.simulation_speed = 10  # milliseconds between steps
         self.last_step_time = 0
         
         # UI elements
@@ -224,7 +224,7 @@ class EconomySimulatorGame:
         
         # Action log
         self.action_log = []
-        self.max_log_entries = 20
+        self.max_log_entries = 50  # Increased from 20
         
         # Map view
         self.map_view = MapView(740, 50, 640, 380, self.simulator)
@@ -256,17 +256,20 @@ class EconomySimulatorGame:
         try:
             actions = self.simulator.tick()
             
-            # Add actions to log
+            # Add actions to log and print to stdout
             for action in actions:
                 log_entry = f"Day {self.simulator.day}: {action['action']}"
                 self.action_log.append(log_entry)
+                print(log_entry)  # Print to stdout
             
             # Keep only recent entries
             if len(self.action_log) > self.max_log_entries:
                 self.action_log = self.action_log[-self.max_log_entries:]
                 
         except Exception as e:
-            self.action_log.append(f"ERROR: {str(e)}")
+            error_msg = f"ERROR: {str(e)}"
+            self.action_log.append(error_msg)
+            print(error_msg)  # Print to stdout
             self.paused = True
             self.play_button.text = "Play"
     
@@ -318,19 +321,24 @@ class EconomySimulatorGame:
         log_title = self.font.render("Action Log", True, BLACK)
         self.screen.blit(log_title, (log_x, log_y))
         
-        pygame.draw.rect(self.screen, LIGHT_GRAY, (log_x, log_y + 25, 420, 280))
-        pygame.draw.rect(self.screen, BLACK, (log_x, log_y + 25, 420, 280), 2)
+        # Increased log area size
+        log_width = 640  # Increased from 420
+        log_height = 280  # Keep same height
+        pygame.draw.rect(self.screen, LIGHT_GRAY, (log_x, log_y + 25, log_width, log_height))
+        pygame.draw.rect(self.screen, BLACK, (log_x, log_y + 25, log_width, log_height), 2)
         
-        # Draw log entries
-        y = log_y + 35
-        for entry in self.action_log[-12:]:  # Show last 12 entries
-            if y < log_y + 295:
-                # Truncate long entries
-                if len(entry) > 65:
-                    entry = entry[:62] + "..."
+        # Draw log entries with smaller font and tighter spacing
+        y = log_y + 30
+        line_height = 16  # Reduced from 20
+        max_entries = 17  # Show more entries
+        for entry in self.action_log[-max_entries:]:  # Show last 17 entries
+            if y < log_y + log_height + 15:
+                # Truncate long entries based on new width
+                if len(entry) > 110:
+                    entry = entry[:107] + "..."
                 text = self.small_font.render(entry, True, BLACK)
                 self.screen.blit(text, (log_x + 10, y))
-                y += 20
+                y += line_height
         
         # Draw controls
         self.play_button.draw(self.screen)
