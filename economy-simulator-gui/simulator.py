@@ -46,7 +46,7 @@ class Person:
             dest_city_coords = cities[self.destination]
             dx = dest_city_coords['x'] - self.x
             dy = dest_city_coords['y'] - self.y
-            distance = (dx**2 + dy**2)**0.5
+            distance = (dx ** 2 + dy ** 2) ** 0.5
 
             if distance < self.speed:
                 self.x = dest_city_coords['x']
@@ -63,13 +63,13 @@ class Person:
             self.fullness = min(100, self.fullness + FULLNESS_ADDITION)
             return f"{self.name} consumed {item}."
         return f"{self.name} has no {item} to consume."
-    
+
     def adjust_prices_after_action(self, action_result: ActionResult):
         """Adjust prices based on the action result."""
         action_type = action_result.action_type
         item = action_result.item
         other_person = action_result.other_person
-        
+
         if action_type == ActionType.BUY_SUCCESS:
             self.prices[item] *= (1 - PRICE_ADJUSTMENT_RATE)
             other_person.prices[item] *= (1 + PRICE_ADJUSTMENT_RATE)
@@ -323,8 +323,8 @@ class Peddler(Person):
                     seller = min(other_people_in_city_with_item, key=lambda x: x.prices[item])
                     can_afford = self.money >= seller.prices[item]
                     is_profitable = seller.prices[item] < (
-                                sum([person.prices[item] for person in other_people_in_other_cities]) / len(
-                            other_people_in_other_cities))
+                            sum([person.prices[item] for person in other_people_in_other_cities]) / len(
+                        other_people_in_other_cities))
                     if can_afford and is_profitable:
                         weights[i] = 1
             elif 'sell' in action:
@@ -333,8 +333,8 @@ class Peddler(Person):
                 if other_people_in_city and self.inventory[item] > 0:
                     buyer = max(other_people_in_city, key=lambda x: x.prices[item])
                     is_profitable = buyer.prices[item] > (
-                                sum([person.prices[item] for person in other_people_in_other_cities]) / len(
-                            other_people_in_other_cities))
+                            sum([person.prices[item] for person in other_people_in_other_cities]) / len(
+                        other_people_in_other_cities))
                     if is_profitable:
                         weights[i] = 1
             elif 'move' in action:
@@ -384,13 +384,13 @@ class EconomySimulator:
         if self.tick_count >= self.ticks_per_day:
             self.tick_count = 0
             return self.simulate_day()
-        
+
         return []
 
     def simulate_day(self):
         self.day += 1
         day_actions = []
-        
+
         for person in self.people:
             if person.fullness <= 0:
                 raise Exception(f"{person.name} has died of hunger.")
@@ -419,13 +419,13 @@ class EconomySimulator:
                     'inventory': dict(person.inventory),
                     'action': action_text
                 })
-        
+
         if day_actions:
             self.action_log.append({
                 'day': self.day,
                 'actions': day_actions
             })
-        
+
         return day_actions
 
     def reset(self):
@@ -436,27 +436,28 @@ def main():
     """Run the simulator in text-only mode"""
     print("Economy Simulator - Text Mode")
     print("=" * 50)
-    
+
     simulator = EconomySimulator()
-    
+
     try:
         while True:
             # Run one full day (20 ticks)
             for _ in range(simulator.ticks_per_day):
                 actions = simulator.tick()
-                
+
                 # Print actions if it's the end of a day
                 if actions:
                     print(f"\nDay {simulator.day}:")
                     print("-" * 30)
                     for action in actions:
                         print(f"  {action['action']}")
-                        print(f"    City: {action['city']}, Money: ${action['money']:.2f}, Fullness: {action['fullness']}%")
-                    
+                        print(
+                            f"    City: {action['city']}, Money: ${action['money']:.2f}, Fullness: {action['fullness']}%")
+
             # Add a small delay to make it readable
             import time
             time.sleep(1)
-            
+
     except KeyboardInterrupt:
         print("\n\nSimulation stopped by user.")
         print(f"Final day: {simulator.day}")
