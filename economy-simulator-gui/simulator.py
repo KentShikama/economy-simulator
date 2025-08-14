@@ -1,12 +1,31 @@
 import random
 from dataclasses import dataclass, field
-from typing import Dict, List
+from typing import Dict, List, Optional
+from enum import Enum
 
 # Constant for fullness addition when consuming items
 FULLNESS_ADDITION = 20
 
 # Price adjustment constants
 PRICE_ADJUSTMENT_RATE = 0.1
+
+
+class ActionType(Enum):
+    BUY_SUCCESS = "buy_success"
+    BUY_REFUSED = "buy_refused"
+    SELL_SUCCESS = "sell_success"
+    SELL_REFUSED = "sell_refused"
+    PRODUCE = "produce"
+    COLLECT = "collect"
+    GROW = "grow"
+
+
+@dataclass
+class ActionResult:
+    action_type: ActionType
+    item: str
+    message: str
+    other_person: Optional['Person'] = None
 
 
 @dataclass
@@ -44,6 +63,25 @@ class Person:
             self.fullness = min(100, self.fullness + FULLNESS_ADDITION)
             return f"{self.name} consumed {item}."
         return f"{self.name} has no {item} to consume."
+    
+    def adjust_prices_after_action(self, action_result: ActionResult):
+        """Adjust prices based on the action result."""
+        action_type = action_result.action_type
+        item = action_result.item
+        other_person = action_result.other_person
+        
+        if action_type == ActionType.BUY_SUCCESS:
+            self.prices[item] *= (1 - PRICE_ADJUSTMENT_RATE)
+            other_person.prices[item] *= (1 + PRICE_ADJUSTMENT_RATE)
+        elif action_type == ActionType.BUY_REFUSED:
+            self.prices[item] *= (1 + PRICE_ADJUSTMENT_RATE)
+        elif action_type == ActionType.SELL_SUCCESS:
+            self.prices[item] *= (1 + PRICE_ADJUSTMENT_RATE)
+            other_person.prices[item] *= (1 - PRICE_ADJUSTMENT_RATE)
+        elif action_type == ActionType.SELL_REFUSED:
+            self.prices[item] *= (1 - PRICE_ADJUSTMENT_RATE)
+        elif action_type in [ActionType.PRODUCE, ActionType.COLLECT, ActionType.GROW]:
+            self.prices[item] *= (1 - PRICE_ADJUSTMENT_RATE)
 
     def buy(self, item, other_people: List['Person']):
         sellers = [person for person in other_people if person.inventory[item] > 0 and person.city == self.city]
@@ -51,16 +89,15 @@ class Person:
             seller = min(sellers, key=lambda x: x.prices[item])
             price = seller.prices[item]
             if price > self.prices[item]:
-                self.prices[item] *= (1 + PRICE_ADJUSTMENT_RATE)
-                return f"{self.name} refuses to buy {item} from {seller.name} because the price is too high."
+                message = f"{self.name} refuses to buy {item} from {seller.name} because the price is too high."
+                return ActionResult(ActionType.BUY_REFUSED, item, message, seller)
             elif self.money >= price:
                 self.money -= price
                 seller.money += price
-                self.prices[item] *= (1 - PRICE_ADJUSTMENT_RATE)
-                seller.prices[item] *= (1 + PRICE_ADJUSTMENT_RATE)
                 self.inventory[item] += 1
                 seller.inventory[item] -= 1
-                return f"{self.name} bought {item} from {seller.name} for {price}."
+                message = f"{self.name} bought {item} from {seller.name} for {price}."
+                return ActionResult(ActionType.BUY_SUCCESS, item, message, seller)
             else:
                 return f"{self.name} cannot afford {item}."
         return f"{self.name} tried to buy {item}, but it is out of stock."
@@ -74,16 +111,15 @@ class Person:
             buyer = max(buyers, key=lambda x: x.prices[item])
             price = buyer.prices[item]
             if price < self.prices[item]:
-                self.prices[item] *= (1 - PRICE_ADJUSTMENT_RATE)
-                return f"{self.name} refuses to sell {item} to {buyer.name} because the price is too low."
+                message = f"{self.name} refuses to sell {item} to {buyer.name} because the price is too low."
+                return ActionResult(ActionType.SELL_REFUSED, item, message, buyer)
             if buyer.money >= price:
                 self.money += price
                 buyer.money -= price
-                self.prices[item] *= (1 + PRICE_ADJUSTMENT_RATE)
-                buyer.prices[item] *= (1 - PRICE_ADJUSTMENT_RATE)
                 self.inventory[item] -= 1
                 buyer.inventory[item] += 1
-                return f"{self.name} sold {item} to {buyer.name} for {price}."
+                message = f"{self.name} sold {item} to {buyer.name} for {price}."
+                return ActionResult(ActionType.SELL_SUCCESS, item, message, buyer)
             return f"{self.name} cannot sell {item} because no one can afford it."
         return f"{self.name} tried to sell {item}, but there are no buyers in {self.city}."
 
@@ -367,8 +403,13 @@ class EconomySimulator:
                     result = person.consume('apple')
             else:
                 result = person.act([p for p in self.people if p != person])
+                # Apply price adjustments after the action if it's an ActionResult
+                if isinstance(result, ActionResult):
+                    person.adjust_prices_after_action(result)
 
             if result:
+                # Extract message from ActionResult or use string directly
+                action_text = result.message if isinstance(result, ActionResult) else result
                 day_actions.append({
                     'person': person.name,
                     'city': person.city,
@@ -376,7 +417,7 @@ class EconomySimulator:
                     'fullness': person.fullness,
                     'prices': dict(person.prices),
                     'inventory': dict(person.inventory),
-                    'action': result
+                    'action': action_text
                 })
         
         if day_actions:
