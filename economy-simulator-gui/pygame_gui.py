@@ -211,6 +211,7 @@ class EconomySimulatorGame:
         self.paused = True
         self.simulation_speed = 3  # milliseconds between steps
         self.last_step_time = 0
+        self.speed_multiplier = 1  # Number of days to simulate per update
         
         # UI elements
         self.play_button = Button(20, WINDOW_HEIGHT - 60, 100, 40, "Play")
@@ -251,16 +252,35 @@ class EconomySimulatorGame:
                     self.simulation_speed = min(5000, self.simulation_speed + 100)
                 elif event.key == pygame.K_RIGHT:
                     self.simulation_speed = max(100, self.simulation_speed - 100)
+                elif event.key == pygame.K_UP:
+                    self.speed_multiplier = min(100, self.speed_multiplier + 1)
+                elif event.key == pygame.K_DOWN:
+                    self.speed_multiplier = max(1, self.speed_multiplier - 1)
+                # Quick speed presets
+                elif event.key == pygame.K_1:
+                    self.speed_multiplier = 1
+                elif event.key == pygame.K_2:
+                    self.speed_multiplier = 5
+                elif event.key == pygame.K_3:
+                    self.speed_multiplier = 10
+                elif event.key == pygame.K_4:
+                    self.speed_multiplier = 25
+                elif event.key == pygame.K_5:
+                    self.speed_multiplier = 50
     
-    def step_simulation(self):
+    def step_simulation(self, days_to_simulate=1):
         try:
-            actions = self.simulator.tick()
-            
-            # Add actions to log and print to stdout
-            for action in actions:
-                log_entry = f"Day {self.simulator.day}: {action['action']}"
-                self.action_log.append(log_entry)
-                print(log_entry)  # Print to stdout
+            for _ in range(days_to_simulate):
+                # Run all 20 ticks for a complete day
+                for _ in range(self.simulator.ticks_per_day):
+                    actions = self.simulator.tick()
+                    
+                    # Add actions to log and print to stdout
+                    for action in actions:
+                        log_entry = f"Day {self.simulator.day}: {action['action']}"
+                        self.action_log.append(log_entry)
+                        if days_to_simulate == 1:  # Only print to stdout in normal speed
+                            print(log_entry)
             
             # Keep only recent entries
             if len(self.action_log) > self.max_log_entries:
@@ -283,7 +303,7 @@ class EconomySimulatorGame:
         current_time = pygame.time.get_ticks()
         
         if not self.paused and current_time - self.last_step_time > self.simulation_speed:
-            self.step_simulation()
+            self.step_simulation(self.speed_multiplier)
             self.last_step_time = current_time
     
     def draw(self):
@@ -346,8 +366,12 @@ class EconomySimulatorGame:
         self.reset_button.draw(self.screen)
         
         # Speed indicator
-        speed_text = self.font.render(f"Speed: {self.simulation_speed/1000:.1f}s (use ← →)", True, BLACK)
+        speed_text = self.font.render(f"Delay: {self.simulation_speed/1000:.1f}s (← →) | Days/frame: {self.speed_multiplier} (↑ ↓)", True, BLACK)
         self.screen.blit(speed_text, (360, WINDOW_HEIGHT - 50))
+        
+        # Speed preset hint
+        preset_text = self.small_font.render("Press 1-5 for speed presets (1x, 5x, 10x, 25x, 50x)", True, DARK_GRAY)
+        self.screen.blit(preset_text, (360, WINDOW_HEIGHT - 30))
         
         # Update display
         pygame.display.flip()
