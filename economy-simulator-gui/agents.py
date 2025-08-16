@@ -9,7 +9,7 @@ from grid import Grid
 FULLNESS_ADDITION = 20
 
 # Price adjustment constants
-PRICE_ADJUSTMENT_RATE = 0.03
+PRICE_ADJUSTMENT_RATE = 0.01
 
 # Peddler inventory limit
 MAX_INVENTORY_PEDDLER = 50
@@ -41,7 +41,7 @@ class Person:
     grid_x: int = 0
     grid_y: int = 0
     fullness: int = 100
-    inventory: Dict[str, int] = field(default_factory=lambda: {'seed': 0, 'fertilizer': 0, 'grain': 30})
+    inventory: Dict[str, int] = field(default_factory=lambda: {'seed': 0, 'fertilizer': 0, 'grain': 40})
     prices: Dict[str, float] = field(default_factory=lambda: {'seed': 10, 'fertilizer': 10, 'grain': 10})
 
     def update_position(self, grid: Grid):
@@ -154,7 +154,7 @@ class SeedCollector(Person):
         for i, action in enumerate(actions):
             if action == "consume_grain":
                 if self.inventory["grain"] > 0:
-                    weights[i] = max(0, 80 - self.fullness, 1000 if self.fullness < 20 else 0)
+                    weights[i] = max(0, 80 - self.fullness, 9999 if self.fullness < 50 else 0)
             elif action == "buy_grain":
                 other_people_in_city_with_grain = [person for person in other_people_in_city if
                                                    person.inventory["grain"] > 0]
@@ -199,7 +199,7 @@ class FertilizerCreator(Person):
         for i, action in enumerate(actions):
             if action == "consume_grain":
                 if self.inventory["grain"] > 0:
-                    weights[i] = max(0, 80 - self.fullness, 1000 if self.fullness < 20 else 0)
+                    weights[i] = max(0, 80 - self.fullness, 9999 if self.fullness < 50 else 0)
             elif action == "buy_grain":
                 other_people_in_city_with_grain = [person for person in other_people_in_city if
                                                    person.inventory["grain"] > 0]
@@ -251,7 +251,7 @@ class Farmer(Person):
         for i, action in enumerate(actions):
             if action == "consume_grain":
                 if self.inventory["grain"] > 0:
-                    weights[i] = max(0, 80 - self.fullness, 1000 if self.fullness < 20 else 0)
+                    weights[i] = max(0, 80 - self.fullness, 9999 if self.fullness < 50 else 0)
             elif action == "buy_seed":
                 other_people_in_city_with_seed = [person for person in other_people_in_city if
                                                    person.inventory["seed"] > 0]
@@ -323,7 +323,7 @@ class Peddler(Person):
         for i, action in enumerate(actions):
             if action == "consume_grain":
                 if self.inventory["grain"] > 0:
-                    weights[i] = max(0, 80 - self.fullness, 1000 if self.fullness < 20 else 0)
+                    weights[i] = max(0, 80 - self.fullness, 9999 if self.fullness < 50 else 0)
             elif 'buy' in action and self.city is not None:  # Can only buy in cities
                 item = action.split('_')[1]
                 other_people_in_city_with_item = [person for person in other_people_in_city if
