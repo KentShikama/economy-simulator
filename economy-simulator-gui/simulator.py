@@ -473,7 +473,6 @@ class Peddler(Person):
                             if profit_margin > 0:
                                 weights[i] = max(1, int(profit_margin * 10))
             elif 'move_to_' in action:
-                # Choose destination cities based on potential profit opportunities
                 destination_city = action.split('_')[-1]
                 
                 # Don't move to the city we're already in
@@ -481,30 +480,16 @@ class Peddler(Person):
                     weights[i] = 0
                     continue
                 
-                # Calculate potential profit from trading in destination city
-                destination_people = [p for p in other_people if p.city == destination_city]
-                if destination_people:
-                    potential_profit = 0
-                    
-                    # Check buy opportunities (items we can buy cheap here and sell there)
-                    for item in ['water', 'fertilizer', 'apple']:
-                        if other_people_in_city:
-                            sellers_here = [p for p in other_people_in_city if p.inventory[item] > 0]
-                            if sellers_here:
-                                min_price_here = min(p.prices[item] for p in sellers_here)
-                                max_price_there = max(p.prices[item] for p in destination_people)
-                                if max_price_there > min_price_here:
-                                    potential_profit += (max_price_there - min_price_here)
-                    
-                    # Check sell opportunities (items we have that we can sell there)
-                    for item in ['water', 'fertilizer', 'apple']:
-                        if self.inventory[item] > 0:
-                            max_price_there = max(p.prices[item] for p in destination_people)
-                            potential_profit += max_price_there * min(self.inventory[item], 5)
-                    
-                    # Weight based on potential profit
-                    if potential_profit > 0:
-                        weights[i] = max(1, int(potential_profit))
+                # If we already have this city as our target, heavily weight continuing toward it
+                if self.target_city == destination_city:
+                    weights[i] = 10  # High weight for persistence
+                else:
+                    # Basic weight for new destinations when not currently traveling
+                    if self.target_city is None:
+                        weights[i] = 1
+                    else:
+                        # No changing destination mid-journey
+                        weights[i] = 0
         
         return weights
 
