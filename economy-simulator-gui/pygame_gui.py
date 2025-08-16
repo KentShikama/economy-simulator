@@ -1,7 +1,7 @@
 import pygame
 import sys
 import math
-from simulator import EconomySimulator
+from simulator import EconomySimulator, CellType, GRID_WIDTH, GRID_HEIGHT
 
 # Initialize Pygame
 pygame.init()
@@ -22,6 +22,9 @@ BROWN = (139, 69, 19)
 RED = (231, 76, 60)
 ORANGE = (230, 126, 34)
 LIGHT_GRAY = (240, 240, 240)
+CITY_COLOR = (255, 245, 200)  # Light yellow for cities
+BLOCKED_COLOR = (80, 80, 80)  # Dark gray for blocked
+PATH_COLOR = (220, 220, 220)  # Light gray for paths
 
 # Person type colors
 TYPE_COLORS = {
@@ -85,8 +88,11 @@ class PersonCard:
 
         y_offset = self.y + 40
 
-        # City and Money
-        city_text = f"City: {self.person.city}"
+        # City and Money (show position if not in city)
+        if self.person.city:
+            city_text = f"City: {self.person.city}"
+        else:
+            city_text = f"Pos: ({self.person.grid_x}, {self.person.grid_y})"
         money_text = f"Money: ${self.person.money:.2f}"
 
         screen.blit(self.font_text.render(city_text, True, BLACK), (self.x + 10, y_offset))
@@ -143,61 +149,117 @@ class MapView:
     def __init__(self, x, y, width, height, simulator):
         self.rect = pygame.Rect(x, y, width, height)
         self.simulator = simulator
-        self.font = pygame.font.Font(None, 24)
-        self.small_font = pygame.font.Font(None, 16)
+        self.font = pygame.font.Font(None, 20)
+        self.small_font = pygame.font.Font(None, 12)
+        self.tiny_font = pygame.font.Font(None, 10)
+        
+        # Calculate cell size based on grid dimensions
+        self.cell_size = min(
+            (width - 20) // GRID_WIDTH,
+            (height - 20) // GRID_HEIGHT
+        )
+        
+        # Center the grid in the view
+        grid_width = self.cell_size * GRID_WIDTH
+        grid_height = self.cell_size * GRID_HEIGHT
+        self.grid_x = x + (width - grid_width) // 2
+        self.grid_y = y + (height - grid_height) // 2
 
     def draw(self, screen):
         # Draw map background
-        pygame.draw.rect(screen, LIGHT_GRAY, self.rect)
+        pygame.draw.rect(screen, WHITE, self.rect)
         pygame.draw.rect(screen, BLACK, self.rect, 2)
-
-        # Draw cities
-        for name, data in self.simulator.cities.items():
-            city_size = 60
-            city_rect = pygame.Rect(data['x'] - city_size // 2, data['y'] - city_size // 2, city_size, city_size)
-
-            # Draw city name above the square
-            text = self.font.render(name, True, BLACK)
-            text_rect = text.get_rect(centerx=data['x'], bottom=city_rect.top - 5)
+        
+        # Draw grid cells
+        for y in range(GRID_HEIGHT):
+            for x in range(GRID_WIDTH):
+                cell_rect = pygame.Rect(
+                    self.grid_x + x * self.cell_size,
+                    self.grid_y + y * self.cell_size,
+                    self.cell_size,
+                    self.cell_size
+                )
+                
+                # Determine cell color
+                cell_type = self.simulator.grid.cells[y][x]
+                if cell_type == CellType.CITY:
+                    color = CITY_COLOR
+                elif cell_type == CellType.BLOCKED:
+                    color = BLOCKED_COLOR
+                else:
+                    color = PATH_COLOR
+                
+                pygame.draw.rect(screen, color, cell_rect)
+                pygame.draw.rect(screen, GRAY, cell_rect, 1)
+        
+        # Draw city labels
+        for city_name, (cx, cy) in self.simulator.grid.city_positions.items():
+            # Calculate center of city
+            center_x = self.grid_x + (cx + 2) * self.cell_size + self.cell_size // 2
+            center_y = self.grid_y + (cy + 2) * self.cell_size + self.cell_size // 2
+            
+            # Draw city name
+            text = self.font.render(f"City {city_name}", True, BLACK)
+            text_rect = text.get_rect(center=(center_x, center_y - self.cell_size * 2))
             screen.blit(text, text_rect)
-
-            # Draw city square
-            pygame.draw.rect(screen, DARK_GRAY, city_rect)
-
-        # Group people by location to handle overlaps
-        people_in_cities = {}
-        for p in self.simulator.people:
-            if p.city:
-                if p.city not in people_in_cities:
-                    people_in_cities[p.city] = []
-                people_in_cities[p.city].append(p)
-
+            
+            # Draw city border
+            city_rect = pygame.Rect(
+                self.grid_x + cx * self.cell_size,
+                self.grid_y + cy * self.cell_size,
+                5 * self.cell_size,
+                5 * self.cell_size
+            )
+            pygame.draw.rect(screen, BLACK, city_rect, 2)
+        
         # Draw people
+        people_by_pos = {}
         for person in self.simulator.people:
-            type_name = type(person).__name__
-            color = TYPE_COLORS.get(type_name, BLACK)
-
-            pos = (int(person.x), int(person.y))
-
-            if person.city:  # Person is in a city, not moving
-                city_people = people_in_cities[person.city]
-                person_index = city_people.index(person)
-                num_people_in_city = len(city_people)
-
-                # Arrange people in a circle inside the city
-                angle = (2 * math.pi * person_index) / num_people_in_city if num_people_in_city > 0 else 0
-                radius = 20  # radius for arranging people
-                offset_x = radius * math.cos(angle)
-                offset_y = radius * math.sin(angle)
-
-                pos = (int(person.x + offset_x), int(person.y + offset_y))
-
-            pygame.draw.circle(screen, color, pos, 8)
-            pygame.draw.circle(screen, BLACK, pos, 8, 1)
-
-            # Person name
-            name_text = self.small_font.render(person.name, True, BLACK)
-            screen.blit(name_text, (pos[0] + 12, pos[1] - 8))
+            pos_key = (person.grid_x, person.grid_y)
+            if pos_key not in people_by_pos:
+                people_by_pos[pos_key] = []
+            people_by_pos[pos_key].append(person)
+        
+        for (gx, gy), people in people_by_pos.items():
+            # Calculate screen position
+            screen_x = self.grid_x + gx * self.cell_size + self.cell_size // 2
+            screen_y = self.grid_y + gy * self.cell_size + self.cell_size // 2
+            
+            if len(people) == 1:
+                # Single person in cell
+                person = people[0]
+                type_name = type(person).__name__
+                color = TYPE_COLORS.get(type_name, BLACK)
+                
+                radius = min(self.cell_size // 3, 8)
+                pygame.draw.circle(screen, color, (screen_x, screen_y), radius)
+                pygame.draw.circle(screen, BLACK, (screen_x, screen_y), radius, 1)
+                
+                # Draw name below if space permits
+                if self.cell_size > 15:
+                    name_text = self.tiny_font.render(person.name[:8], True, BLACK)
+                    text_rect = name_text.get_rect(centerx=screen_x, top=screen_y + radius + 2)
+                    screen.blit(name_text, text_rect)
+            else:
+                # Multiple people in cell - arrange in small circle
+                num_people = len(people)
+                small_radius = min(self.cell_size // 4, 5)
+                
+                for i, person in enumerate(people):
+                    angle = (2 * math.pi * i) / num_people
+                    offset_x = int(small_radius * math.cos(angle))
+                    offset_y = int(small_radius * math.sin(angle))
+                    
+                    type_name = type(person).__name__
+                    color = TYPE_COLORS.get(type_name, BLACK)
+                    
+                    person_radius = min(self.cell_size // 6, 4)
+                    pygame.draw.circle(screen, color, 
+                                     (screen_x + offset_x, screen_y + offset_y), 
+                                     person_radius)
+                    pygame.draw.circle(screen, BLACK, 
+                                     (screen_x + offset_x, screen_y + offset_y), 
+                                     person_radius, 1)
 
 
 class EconomySimulatorGame:
@@ -228,7 +290,7 @@ class EconomySimulatorGame:
         self.max_log_entries = 50  # Increased from 20
 
         # Map view
-        self.map_view = MapView(740, 50, 640, 380, self.simulator)
+        self.map_view = MapView(740, 50, 640, 450, self.simulator)
 
     def handle_events(self):
         for event in pygame.event.get():
@@ -343,21 +405,21 @@ class EconomySimulatorGame:
 
         # Draw action log
         log_x = 740
-        log_y = 440
+        log_y = 510
         log_title = self.font.render("Action Log", True, BLACK)
         self.screen.blit(log_title, (log_x, log_y))
 
-        # Increased log area size
-        log_width = 640  # Increased from 420
-        log_height = 280  # Keep same height
+        # Adjusted log area size
+        log_width = 640  
+        log_height = 210  # Reduced height
         pygame.draw.rect(self.screen, LIGHT_GRAY, (log_x, log_y + 25, log_width, log_height))
         pygame.draw.rect(self.screen, BLACK, (log_x, log_y + 25, log_width, log_height), 2)
 
         # Draw log entries with smaller font and tighter spacing
         y = log_y + 30
-        line_height = 16  # Reduced from 20
-        max_entries = 17  # Show more entries
-        for entry in self.action_log[-max_entries:]:  # Show last 17 entries
+        line_height = 16  
+        max_entries = 12  # Show fewer entries due to less space
+        for entry in self.action_log[-max_entries:]:  
             if y < log_y + log_height + 15:
                 # Truncate long entries based on new width
                 if len(entry) > 110:
