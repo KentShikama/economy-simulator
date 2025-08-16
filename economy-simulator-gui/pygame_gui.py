@@ -1,7 +1,8 @@
 import pygame
 import sys
 import math
-from simulator import EconomySimulator, CellType, GRID_WIDTH, GRID_HEIGHT
+from simulator import EconomySimulator
+from grid import CellType, GRID_WIDTH, GRID_HEIGHT
 
 # Initialize Pygame
 pygame.init()
@@ -152,13 +153,13 @@ class MapView:
         self.font = pygame.font.Font(None, 20)
         self.small_font = pygame.font.Font(None, 12)
         self.tiny_font = pygame.font.Font(None, 10)
-        
+
         # Calculate cell size based on grid dimensions
         self.cell_size = min(
             (width - 20) // GRID_WIDTH,
             (height - 20) // GRID_HEIGHT
         )
-        
+
         # Center the grid in the view
         grid_width = self.cell_size * GRID_WIDTH
         grid_height = self.cell_size * GRID_HEIGHT
@@ -169,7 +170,7 @@ class MapView:
         # Draw map background
         pygame.draw.rect(screen, WHITE, self.rect)
         pygame.draw.rect(screen, BLACK, self.rect, 2)
-        
+
         # Draw grid cells
         for y in range(GRID_HEIGHT):
             for x in range(GRID_WIDTH):
@@ -179,7 +180,7 @@ class MapView:
                     self.cell_size,
                     self.cell_size
                 )
-                
+
                 # Determine cell color
                 cell_type = self.simulator.grid.cells[y][x]
                 if cell_type == CellType.CITY:
@@ -188,21 +189,21 @@ class MapView:
                     color = BLOCKED_COLOR
                 else:
                     color = PATH_COLOR
-                
+
                 pygame.draw.rect(screen, color, cell_rect)
                 pygame.draw.rect(screen, GRAY, cell_rect, 1)
-        
+
         # Draw city labels
         for city_name, (cx, cy) in self.simulator.grid.city_positions.items():
             # Calculate center of city
             center_x = self.grid_x + (cx + 2) * self.cell_size + self.cell_size // 2
             center_y = self.grid_y + (cy + 2) * self.cell_size + self.cell_size // 2
-            
+
             # Draw city name
             text = self.font.render(f"City {city_name}", True, BLACK)
             text_rect = text.get_rect(center=(center_x, center_y - self.cell_size * 2))
             screen.blit(text, text_rect)
-            
+
             # Draw city border
             city_rect = pygame.Rect(
                 self.grid_x + cx * self.cell_size,
@@ -211,7 +212,7 @@ class MapView:
                 5 * self.cell_size
             )
             pygame.draw.rect(screen, BLACK, city_rect, 2)
-        
+
         # Draw people
         people_by_pos = {}
         for person in self.simulator.people:
@@ -219,22 +220,22 @@ class MapView:
             if pos_key not in people_by_pos:
                 people_by_pos[pos_key] = []
             people_by_pos[pos_key].append(person)
-        
+
         for (gx, gy), people in people_by_pos.items():
             # Calculate screen position
             screen_x = self.grid_x + gx * self.cell_size + self.cell_size // 2
             screen_y = self.grid_y + gy * self.cell_size + self.cell_size // 2
-            
+
             if len(people) == 1:
                 # Single person in cell
                 person = people[0]
                 type_name = type(person).__name__
                 color = TYPE_COLORS.get(type_name, BLACK)
-                
+
                 radius = min(self.cell_size // 3, 8)
                 pygame.draw.circle(screen, color, (screen_x, screen_y), radius)
                 pygame.draw.circle(screen, BLACK, (screen_x, screen_y), radius, 1)
-                
+
                 # Draw name below if space permits
                 if self.cell_size > 15:
                     name_text = self.tiny_font.render(person.name[:8], True, BLACK)
@@ -244,22 +245,22 @@ class MapView:
                 # Multiple people in cell - arrange in small circle
                 num_people = len(people)
                 small_radius = min(self.cell_size // 4, 5)
-                
+
                 for i, person in enumerate(people):
                     angle = (2 * math.pi * i) / num_people
                     offset_x = int(small_radius * math.cos(angle))
                     offset_y = int(small_radius * math.sin(angle))
-                    
+
                     type_name = type(person).__name__
                     color = TYPE_COLORS.get(type_name, BLACK)
-                    
+
                     person_radius = min(self.cell_size // 6, 4)
-                    pygame.draw.circle(screen, color, 
-                                     (screen_x + offset_x, screen_y + offset_y), 
-                                     person_radius)
-                    pygame.draw.circle(screen, BLACK, 
-                                     (screen_x + offset_x, screen_y + offset_y), 
-                                     person_radius, 1)
+                    pygame.draw.circle(screen, color,
+                                       (screen_x + offset_x, screen_y + offset_y),
+                                       person_radius)
+                    pygame.draw.circle(screen, BLACK,
+                                       (screen_x + offset_x, screen_y + offset_y),
+                                       person_radius, 1)
 
 
 class EconomySimulatorGame:
@@ -410,16 +411,16 @@ class EconomySimulatorGame:
         self.screen.blit(log_title, (log_x, log_y))
 
         # Adjusted log area size
-        log_width = 640  
+        log_width = 640
         log_height = 210  # Reduced height
         pygame.draw.rect(self.screen, LIGHT_GRAY, (log_x, log_y + 25, log_width, log_height))
         pygame.draw.rect(self.screen, BLACK, (log_x, log_y + 25, log_width, log_height), 2)
 
         # Draw log entries with smaller font and tighter spacing
         y = log_y + 30
-        line_height = 16  
+        line_height = 16
         max_entries = 12  # Show fewer entries due to less space
-        for entry in self.action_log[-max_entries:]:  
+        for entry in self.action_log[-max_entries:]:
             if y < log_y + log_height + 15:
                 # Truncate long entries based on new width
                 if len(entry) > 110:
