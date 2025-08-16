@@ -1,4 +1,4 @@
-from agents import WaterCollector, FertilizerCreator, Farmer, Peddler, ActionResult
+from agents import SeedCollector, FertilizerCreator, Farmer, Peddler, ActionResult
 from grid import Grid, GRID_WIDTH, GRID_HEIGHT
 
 
@@ -7,16 +7,16 @@ class EconomySimulator:
         self.grid = Grid(GRID_WIDTH, GRID_HEIGHT)
 
         # Initialize people with grid positions
-        # City A: Water Collectors
-        # City B: Fertilizer Creators  
-        # City C: Farmers
-        # Peddlers: Distributed across all cities
+        # City of Seeds: Seed Collectors
+        # City of Mulch: Fertilizer Creators  
+        # City of Harvest: Farmers
+        # Peddlers: Travel between cities
         self.people = [
-            WaterCollector(name="Digger", city="A", money=1000),
-            FertilizerCreator(name="Dirt", city="B", money=1000),
-            Farmer(name="Farmer Joe", city="C", money=1000),
-            Peddler(name="Carrier X", city="A", money=1000),
-            Peddler(name="Carrier Y", city="B", money=1000),
+            SeedCollector(name="Harvester Harry", city="Seeds", money=1000),
+            FertilizerCreator(name="Composter Carl", city="Mulch", money=1000),
+            Farmer(name="Farmer Frank", city="Harvest", money=1000),
+            Peddler(name="Peddler Pete", city="Seeds", money=1000),
+            Peddler(name="Peddler Penny", city="Mulch", money=1000),
         ]
 
         # Place people in their starting cities (center of each city)

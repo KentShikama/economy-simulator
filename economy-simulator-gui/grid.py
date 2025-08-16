@@ -29,12 +29,12 @@ class Grid:
         self.cells = [[CellType.PATH for _ in range(self.width)] for _ in range(self.height)]
 
         # Place cities (each city is 5x5)
-        # City A at top-left area
-        self.city_positions['A'] = (3, 3)
-        # City B at top-right area
-        self.city_positions['B'] = (22, 3)
-        # City C at bottom-center area
-        self.city_positions['C'] = (12, 13)
+        # City of Seeds at top-left area
+        self.city_positions['Seeds'] = (3, 3)
+        # City of Mulch at top-right area
+        self.city_positions['Mulch'] = (22, 3)
+        # City of Harvest at bottom-center area
+        self.city_positions['Harvest'] = (12, 13)
 
         # Mark city cells
         for city_name, (cx, cy) in self.city_positions.items():

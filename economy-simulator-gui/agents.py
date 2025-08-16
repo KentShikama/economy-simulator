@@ -12,7 +12,7 @@ FULLNESS_ADDITION = 20
 PRICE_ADJUSTMENT_RATE = 0.03
 
 # Peddler inventory limit
-MAX_INVENTORY_PEDDLER = 40
+MAX_INVENTORY_PEDDLER = 50
 
 
 class ActionType(Enum):
@@ -41,8 +41,8 @@ class Person:
     grid_x: int = 0
     grid_y: int = 0
     fullness: int = 100
-    inventory: Dict[str, int] = field(default_factory=lambda: {'water': 0, 'fertilizer': 0, 'apple': 20})
-    prices: Dict[str, float] = field(default_factory=lambda: {'water': 10, 'fertilizer': 10, 'apple': 10})
+    inventory: Dict[str, int] = field(default_factory=lambda: {'seed': 0, 'fertilizer': 0, 'grain': 30})
+    prices: Dict[str, float] = field(default_factory=lambda: {'seed': 10, 'fertilizer': 10, 'grain': 10})
 
     def update_position(self, grid: Grid):
         """Update the person's current city based on their grid position"""
@@ -75,11 +75,11 @@ class Person:
                 self.prices[item] *= (1 - PRICE_ADJUSTMENT_RATE)
             elif action_type == ActionType.GROW:
                 self.prices[item] *= (1 - PRICE_ADJUSTMENT_RATE)
-                self.prices['water'] *= (1 + PRICE_ADJUSTMENT_RATE)
+                self.prices['seed'] *= (1 + PRICE_ADJUSTMENT_RATE)
                 self.prices['fertilizer'] *= (1 + PRICE_ADJUSTMENT_RATE)
 
         if self.fullness < 70:
-            self.prices['apple'] *= (1 + PRICE_ADJUSTMENT_RATE)
+            self.prices['grain'] *= (1 + PRICE_ADJUSTMENT_RATE)
 
     def buy(self, item, other_people: List['Person']):
         # People can trade if they're in the same city (including None for traveling)
@@ -133,79 +133,79 @@ class Person:
 
 
 @dataclass
-class WaterCollector(Person):
+class SeedCollector(Person):
     def act(self, other_people: List['Person']):
-        actions = ['collect_water', 'sell_water', 'buy_apple', 'consume_apple']
+        actions = ['collect_seed', 'sell_seed', 'buy_grain', 'consume_grain']
         weights = self.build_weights(actions, other_people)
         action = random.choices(actions, weights=weights, k=1)[0]
-        if action == 'collect_water':
-            return self.collect_water()
-        elif action == 'sell_water':
-            return self.sell('water', other_people)
-        elif action == 'buy_apple':
-            return self.buy('apple', other_people)
-        elif action == 'consume_apple':
-            return self.consume('apple')
+        if action == 'collect_seed':
+            return self.collect_seed()
+        elif action == 'sell_seed':
+            return self.sell('seed', other_people)
+        elif action == 'buy_grain':
+            return self.buy('grain', other_people)
+        elif action == 'consume_grain':
+            return self.consume('grain')
         return "Invalid action"
 
     def build_weights(self, actions, other_people):
         weights = [0 for _action in actions]
         other_people_in_city = [person for person in other_people if person.city == self.city]
         for i, action in enumerate(actions):
-            if action == "consume_apple":
-                if self.inventory["apple"] > 0:
+            if action == "consume_grain":
+                if self.inventory["grain"] > 0:
                     weights[i] = max(0, 80 - self.fullness, 1000 if self.fullness < 20 else 0)
-            elif action == "buy_apple":
-                other_people_in_city_with_apple = [person for person in other_people_in_city if
-                                                   person.inventory["apple"] > 0]
-                if other_people_in_city_with_apple:
-                    seller = min(other_people_in_city_with_apple, key=lambda x: x.prices["apple"])
-                    can_afford = self.money >= seller.prices["apple"]
+            elif action == "buy_grain":
+                other_people_in_city_with_grain = [person for person in other_people_in_city if
+                                                   person.inventory["grain"] > 0]
+                if other_people_in_city_with_grain:
+                    seller = min(other_people_in_city_with_grain, key=lambda x: x.prices["grain"])
+                    can_afford = self.money >= seller.prices["grain"]
                     is_not_full = self.fullness < 100
                     if can_afford and is_not_full:
                         weights[i] = (100 - self.fullness)
-            elif action == "sell_water":
-                if self.inventory["water"] > 0:
-                    weights[i] = max(10, (self.inventory["water"] // 10) + 1)
-            elif action == "collect_water":
+            elif action == "sell_seed":
+                if self.inventory["seed"] > 0:
+                    weights[i] = max(10, (self.inventory["seed"] // 10) + 1)
+            elif action == "collect_seed":
                 weights[i] = 1
         return weights
 
-    def collect_water(self):
-        self.inventory['water'] += 10
-        message = f"{self.name} collected 10 units of water."
-        return ActionResult(ActionType.COLLECT, 'water', message)
+    def collect_seed(self):
+        self.inventory['seed'] += 10
+        message = f"{self.name} collected 10 units of seed."
+        return ActionResult(ActionType.COLLECT, 'seed', message)
 
 
 @dataclass
 class FertilizerCreator(Person):
     def act(self, other_people: List['Person']):
-        actions = ['produce_fertilizer', 'sell_fertilizer', 'buy_apple', 'consume_apple']
+        actions = ['produce_fertilizer', 'sell_fertilizer', 'buy_grain', 'consume_grain']
         weights = self.build_weights(actions, other_people)
         action = random.choices(actions, weights=weights, k=1)[0]
         if action == 'produce_fertilizer':
             return self.produce_fertilizer()
         elif action == 'sell_fertilizer':
             return self.sell('fertilizer', other_people)
-        elif action == 'buy_apple':
-            return self.buy('apple', other_people)
-        elif action == 'consume_apple':
-            return self.consume('apple')
+        elif action == 'buy_grain':
+            return self.buy('grain', other_people)
+        elif action == 'consume_grain':
+            return self.consume('grain')
         return "Invalid action"
 
     def build_weights(self, actions, other_people):
         weights = [0 for _action in actions]
         other_people_in_city = [person for person in other_people if person.city == self.city]
         for i, action in enumerate(actions):
-            if action == "consume_apple":
-                if self.inventory["apple"] > 0:
+            if action == "consume_grain":
+                if self.inventory["grain"] > 0:
                     weights[i] = max(0, 80 - self.fullness, 1000 if self.fullness < 20 else 0)
-            elif action == "buy_apple":
-                other_people_in_city_with_apple = [person for person in other_people_in_city if
-                                                   person.inventory["apple"] > 0]
-                if other_people_in_city_with_apple:
-                    seller = min(other_people_in_city_with_apple, key=lambda x: x.prices["apple"])
-                    can_afford = self.money >= seller.prices["apple"]
+            elif action == "buy_grain":
+                other_people_in_city_with_grain = [person for person in other_people_in_city if
+                                                   person.inventory["grain"] > 0]
+                if other_people_in_city_with_grain:
+                    seller = min(other_people_in_city_with_grain, key=lambda x: x.prices["grain"])
+                    can_afford = self.money >= seller.prices["grain"]
                     is_not_full = self.fullness < 100
                     if can_afford and is_not_full:
                         weights[i] = (100 - self.fullness)
@@ -225,22 +225,22 @@ class FertilizerCreator(Person):
 @dataclass
 class Farmer(Person):
     def act(self, other_people: List['Person']):
-        actions = ['grow_apple', 'buy_water', 'buy_fertilizer', 'sell_apple', 'consume_apple', 'do_nothing']
+        actions = ['grow_grain', 'buy_seed', 'buy_fertilizer', 'sell_grain', 'consume_grain', 'do_nothing']
         weights = self.build_weights(actions, other_people)
         try:
             action = random.choices(actions, weights=weights, k=1)[0]
         except ValueError:
             action = 'consume_apple'
-        if action == 'grow_apple':
-            return self.grow_apple()
-        elif action == 'buy_water':
-            return self.buy('water', other_people)
+        if action == 'grow_grain':
+            return self.grow_grain()
+        elif action == 'buy_seed':
+            return self.buy('seed', other_people)
         elif action == 'buy_fertilizer':
             return self.buy('fertilizer', other_people)
-        elif action == 'sell_apple':
-            return self.sell('apple', other_people)
-        elif action == 'consume_apple':
-            return self.consume('apple')
+        elif action == 'sell_grain':
+            return self.sell('grain', other_people)
+        elif action == 'consume_grain':
+            return self.consume('grain')
         elif action == 'do_nothing':
             return f"{self.name} is resting."
         return "Invalid action"
@@ -249,16 +249,16 @@ class Farmer(Person):
         weights = [0 for _action in actions]
         other_people_in_city = [person for person in other_people if person.city == self.city]
         for i, action in enumerate(actions):
-            if action == "consume_apple":
-                if self.inventory["apple"] > 0:
+            if action == "consume_grain":
+                if self.inventory["grain"] > 0:
                     weights[i] = max(0, 80 - self.fullness, 1000 if self.fullness < 20 else 0)
-            elif action == "buy_water":
-                other_people_in_city_with_water = [person for person in other_people_in_city if
-                                                   person.inventory["water"] > 0]
-                if other_people_in_city_with_water:
-                    seller = min(other_people_in_city_with_water, key=lambda x: x.prices["water"])
-                    can_afford = self.money >= seller.prices["water"]
-                    is_profitable = self.prices["apple"] > self.prices["fertilizer"] + seller.prices["water"]
+            elif action == "buy_seed":
+                other_people_in_city_with_seed = [person for person in other_people_in_city if
+                                                   person.inventory["seed"] > 0]
+                if other_people_in_city_with_seed:
+                    seller = min(other_people_in_city_with_seed, key=lambda x: x.prices["seed"])
+                    can_afford = self.money >= seller.prices["seed"]
+                    is_profitable = self.prices["grain"] > self.prices["fertilizer"] + seller.prices["seed"]
                     if can_afford and is_profitable:
                         weights[i] = 1
             elif action == "buy_fertilizer":
@@ -267,27 +267,27 @@ class Farmer(Person):
                 if other_people_in_city_with_fertilizer:
                     seller = min(other_people_in_city_with_fertilizer, key=lambda x: x.prices["fertilizer"])
                     can_afford = self.money >= seller.prices["fertilizer"]
-                    is_profitable = self.prices["apple"] > self.prices["water"] + seller.prices["fertilizer"]
+                    is_profitable = self.prices["grain"] > self.prices["seed"] + seller.prices["fertilizer"]
                     if can_afford and is_profitable:
                         weights[i] = 1
-            elif action == "sell_apple":
-                if self.inventory["apple"] > 0:
-                    weights[i] = (self.inventory["apple"] // 10) + 1
-            elif action == "grow_apple":
-                if self.inventory["water"] > 0 and self.inventory["fertilizer"] > 0:
+            elif action == "sell_grain":
+                if self.inventory["grain"] > 0:
+                    weights[i] = (self.inventory["grain"] // 10) + 1
+            elif action == "grow_grain":
+                if self.inventory["seed"] > 0 and self.inventory["fertilizer"] > 0:
                     weights[i] = 1
             elif action == "do_nothing":
                 weights[i] = 1
         return weights
 
-    def grow_apple(self):
-        if self.inventory['water'] > 0 and self.inventory['fertilizer'] > 0:
-            self.inventory['water'] -= 1
+    def grow_grain(self):
+        if self.inventory['seed'] > 0 and self.inventory['fertilizer'] > 0:
+            self.inventory['seed'] -= 1
             self.inventory['fertilizer'] -= 1
-            self.inventory['apple'] += 10
-            message = f"{self.name} grew 10 units of apple."
-            return ActionResult(ActionType.GROW, 'apple', message)
-        return f"{self.name} does not have enough resources to grow apples."
+            self.inventory['grain'] += 10
+            message = f"{self.name} grew 10 units of grain."
+            return ActionResult(ActionType.GROW, 'grain', message)
+        return f"{self.name} does not have enough resources to grow grain."
 
 
 @dataclass
@@ -295,8 +295,8 @@ class Peddler(Person):
     target_city: Optional[str] = None
 
     def act(self, other_people: List['Person'], grid: Grid):
-        actions = ['move_to_A', 'move_to_B', 'move_to_C', 'buy_water', 'buy_fertilizer', 'buy_apple',
-                   'sell_water', 'sell_fertilizer', 'sell_apple', 'consume_apple']
+        actions = ['move_to_Seeds', 'move_to_Mulch', 'move_to_Harvest', 'buy_seed', 'buy_fertilizer', 'buy_grain',
+                   'sell_seed', 'sell_fertilizer', 'sell_grain', 'consume_grain']
         weights = self.build_weights(actions, other_people)
         try:
             action = random.choices(actions, weights=weights, k=1)[0]
@@ -312,8 +312,8 @@ class Peddler(Person):
         elif 'sell' in action:
             item = action.split('_')[1]
             return self.sell(item, other_people)
-        elif action == 'consume_apple':
-            return self.consume('apple')
+        elif action == 'consume_grain':
+            return self.consume('grain')
         return "Invalid action"
 
     def build_weights(self, actions, other_people):
@@ -321,8 +321,8 @@ class Peddler(Person):
         other_people_in_city = [person for person in other_people if person.city == self.city and self.city is not None]
 
         for i, action in enumerate(actions):
-            if action == "consume_apple":
-                if self.inventory["apple"] > 0:
+            if action == "consume_grain":
+                if self.inventory["grain"] > 0:
                     weights[i] = max(0, 80 - self.fullness, 1000 if self.fullness < 20 else 0)
             elif 'buy' in action and self.city is not None:  # Can only buy in cities
                 item = action.split('_')[1]
