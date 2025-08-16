@@ -51,11 +51,11 @@ class Grid:
     height: int
     cells: List[List[CellType]] = field(default_factory=list)
     city_positions: Dict[str, Tuple[int, int]] = field(default_factory=dict)
-    
+
     def __post_init__(self):
         # Initialize grid with all paths
         self.cells = [[CellType.PATH for _ in range(self.width)] for _ in range(self.height)]
-        
+
         # Place cities (each city is 5x5)
         # City A at top-left area
         self.city_positions['A'] = (3, 3)
@@ -63,14 +63,14 @@ class Grid:
         self.city_positions['B'] = (22, 3)
         # City C at bottom-center area
         self.city_positions['C'] = (12, 13)
-        
+
         # Mark city cells
         for city_name, (cx, cy) in self.city_positions.items():
             for dy in range(CITY_SIZE):
                 for dx in range(CITY_SIZE):
                     if 0 <= cx + dx < self.width and 0 <= cy + dy < self.height:
                         self.cells[cy + dy][cx + dx] = CellType.CITY
-        
+
         # Add some blocked cells around the map for obstacles
         # Create some natural barriers
         blocked_regions = [
@@ -81,70 +81,70 @@ class Grid:
             (1, 10), (2, 10), (1, 11), (2, 11),
             (26, 10), (27, 10), (28, 10), (26, 11), (27, 11),
         ]
-        
+
         for bx, by in blocked_regions:
             if 0 <= bx < self.width and 0 <= by < self.height:
                 # Don't block city cells
                 if self.cells[by][bx] != CellType.CITY:
                     self.cells[by][bx] = CellType.BLOCKED
-    
+
     def get_city_at(self, x: int, y: int) -> Optional[str]:
         """Returns the city name if the position is within a city, None otherwise"""
         for city_name, (cx, cy) in self.city_positions.items():
             if cx <= x < cx + CITY_SIZE and cy <= y < cy + CITY_SIZE:
                 return city_name
         return None
-    
+
     def is_valid_move(self, x: int, y: int) -> bool:
         """Check if a position is valid for movement"""
         if x < 0 or x >= self.width or y < 0 or y >= self.height:
             return False
         return self.cells[y][x] != CellType.BLOCKED
-    
+
     def get_neighbors(self, x: int, y: int) -> List[Tuple[int, int]]:
         """Get valid neighboring positions (up, down, left, right)"""
         neighbors = []
         directions = [(0, -1), (0, 1), (-1, 0), (1, 0)]  # up, down, left, right
-        
+
         for dx, dy in directions:
             nx, ny = x + dx, y + dy
             if self.is_valid_move(nx, ny):
                 neighbors.append((nx, ny))
-        
+
         return neighbors
-    
+
     def find_path_to_city(self, start_x: int, start_y: int, target_city: str) -> List[Tuple[int, int]]:
         """Find shortest path from start position to target city using BFS"""
         if target_city not in self.city_positions:
             return []
-        
+
         # Get city center as target
         cx, cy = self.city_positions[target_city]
         target_x, target_y = cx + 2, cy + 2  # Center of 5x5 city
-        
+
         # If already at target
         if start_x == target_x and start_y == target_y:
             return []
-        
+
         # BFS to find shortest path
         queue = deque([(start_x, start_y, [])])
         visited = {(start_x, start_y)}
-        
+
         while queue:
             x, y, path = queue.popleft()
-            
+
             # Check all neighbors
             for nx, ny in self.get_neighbors(x, y):
                 if (nx, ny) not in visited:
                     visited.add((nx, ny))
                     new_path = path + [(nx, ny)]
-                    
+
                     # Check if we reached the target city
                     if self.get_city_at(nx, ny) == target_city:
                         return new_path
-                    
+
                     queue.append((nx, ny, new_path))
-        
+
         return []  # No path found
 
 
@@ -200,7 +200,8 @@ class Person:
 
     def buy(self, item, other_people: List['Person']):
         # People can trade if they're in the same city (including None for traveling)
-        sellers = [person for person in other_people if person.inventory[item] > 0 and person.city == self.city and self.city is not None]
+        sellers = [person for person in other_people if
+                   person.inventory[item] > 0 and person.city == self.city and self.city is not None]
         if sellers:
             seller = min(sellers, key=lambda x: x.prices[item])
             price = seller.prices[item]
@@ -227,7 +228,7 @@ class Person:
         # Can only sell if in a city
         if self.city is None:
             return f"{self.name} must be in a city to sell {item}."
-        
+
         buyers = [person for person in other_people if person.city == self.city]
         if buyers:
             buyer = max(buyers, key=lambda x: x.prices[item])
@@ -409,16 +410,16 @@ class Farmer(Person):
 @dataclass
 class Peddler(Person):
     target_city: Optional[str] = None
-    
+
     def act(self, other_people: List['Person'], grid: Grid):
-        actions = ['move_to_A', 'move_to_B', 'move_to_C', 'buy_water', 'buy_fertilizer', 'buy_apple', 
+        actions = ['move_to_A', 'move_to_B', 'move_to_C', 'buy_water', 'buy_fertilizer', 'buy_apple',
                    'sell_water', 'sell_fertilizer', 'sell_apple', 'consume_apple', 'do_nothing']
         weights = self.build_weights(actions, other_people, grid)
         try:
             action = random.choices(actions, weights=weights, k=1)[0]
         except ValueError:
             action = 'do_nothing'
-        
+
         if 'move_to_' in action:
             destination_city = action.split('_')[-1]
             return self.move_toward_target(grid, destination_city)
@@ -435,8 +436,9 @@ class Peddler(Person):
     def build_weights(self, actions, other_people, grid: Grid):
         weights = [0 for _action in actions]
         other_people_in_city = [person for person in other_people if person.city == self.city and self.city is not None]
-        other_people_in_other_cities = [person for person in other_people if person.city != self.city and person.city is not None]
-        
+        other_people_in_other_cities = [person for person in other_people if
+                                        person.city != self.city and person.city is not None]
+
         for i, action in enumerate(actions):
             if action == "consume_apple":
                 if self.inventory["apple"] > 0:
@@ -451,7 +453,8 @@ class Peddler(Person):
                     if other_people_in_other_cities:
                         avg_price = sum([person.prices[item] for person in other_people_in_other_cities]) / len(
                             other_people_in_other_cities)
-                        profit_margin = (avg_price - seller.prices[item]) / seller.prices[item] if seller.prices[item] > 0 else 0
+                        profit_margin = (avg_price - seller.prices[item]) / seller.prices[item] if seller.prices[
+                                                                                                       item] > 0 else 0
                         if can_afford and profit_margin > 0:
                             weights[i] = max(1, int(profit_margin * 10))
             elif 'sell' in action and self.city is not None:  # Can only sell in cities
@@ -468,12 +471,12 @@ class Peddler(Person):
                                 weights[i] = max(1, int(profit_margin * 10))
             elif 'move_to_' in action:
                 destination_city = action.split('_')[-1]
-                
+
                 # Don't move to the city we're already in
                 if destination_city == self.city:
                     weights[i] = 0
                     continue
-                
+
                 # If we already have this city as our target, heavily weight continuing toward it
                 if self.target_city == destination_city:
                     weights[i] = 10  # High weight for persistence
@@ -484,10 +487,9 @@ class Peddler(Person):
                     else:
                         # No changing destination mid-journey
                         weights[i] = 0
-        
+
         return weights
 
-    
     def move_toward_target(self, grid: Grid, destination_city: str = None):
         """Move one step toward the target city"""
         # Set new target if provided
@@ -496,13 +498,13 @@ class Peddler(Person):
             if destination_city == self.city:
                 return f"{self.name} is already in {destination_city}."
             self.target_city = destination_city
-        
+
         if not self.target_city:
             return f"{self.name} has no destination."
-        
+
         # Get path from current position to target
         path = grid.find_path_to_city(self.grid_x, self.grid_y, self.target_city)
-        
+
         if not path:
             # Already at destination or no path found
             if self.city == self.target_city:
@@ -510,14 +512,14 @@ class Peddler(Person):
                 return f"{self.name} has arrived at {self.city}."
             else:
                 return f"{self.name} cannot find a path to {self.target_city}."
-        
+
         # Move to next position (first step in path)
         next_x, next_y = path[0]
         old_city = self.city
         self.grid_x = next_x
         self.grid_y = next_y
         self.update_position(grid)
-        
+
         # Check if we entered or left a city
         if old_city != self.city:
             if self.city:
@@ -538,14 +540,14 @@ class Peddler(Person):
                 direction = "down"
             else:
                 direction = "up"
-            
+
             return f"{self.name} moved {direction} toward {self.target_city}."
 
 
 class EconomySimulator:
     def __init__(self):
         self.grid = Grid(GRID_WIDTH, GRID_HEIGHT)
-        
+
         # Initialize people with grid positions
         self.people = [
             WaterCollector(name="Digger", city="A", money=100),
@@ -554,7 +556,7 @@ class EconomySimulator:
             Peddler(name="Carrier X", city="A", money=100),
             Peddler(name="Carrier Y", city="B", money=100),
         ]
-        
+
         # Place people in their starting cities (center of each city)
         for person in self.people:
             if person.city in self.grid.city_positions:
@@ -595,7 +597,7 @@ class EconomySimulator:
                 result = person.act([p for p in self.people if p != person], self.grid)
             else:
                 result = person.act([p for p in self.people if p != person])
-            
+
             person.adjust_prices(result)
 
             if result:
