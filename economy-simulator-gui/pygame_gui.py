@@ -69,7 +69,7 @@ class PersonCard:
         self.y = y
         self.person = person
         self.width = 220
-        self.height = 240
+        self.height = 180
         self.font_title = pygame.font.Font(None, 18)
         self.font_text = pygame.font.Font(None, 14)
 
@@ -125,24 +125,22 @@ class PersonCard:
 
         y_offset += 25
 
-        # Inventory
+        # Two-column layout for Inventory and Prices
+        # Left column: Inventory
         screen.blit(self.font_text.render("Inventory:", True, BLACK), (self.x + 10, y_offset))
+        # Right column: Prices
+        screen.blit(self.font_text.render("Prices:", True, BLACK), (self.x + 115, y_offset))
         y_offset += 15
 
-        for item, count in self.person.inventory.items():
-            text = f"{item}: {count}"
-            screen.blit(self.font_text.render(text, True, BLACK), (self.x + 20, y_offset))
-            y_offset += 15
-
-        y_offset += 5
-
-        # Prices
-        screen.blit(self.font_text.render("Prices:", True, BLACK), (self.x + 10, y_offset))
-        y_offset += 15
-
-        for item, price in self.person.prices.items():
-            text = f"{item}: ${price:.2f}"
-            screen.blit(self.font_text.render(text, True, BLACK), (self.x + 20, y_offset))
+        # Display items in two columns
+        for item in self.person.inventory.keys():
+            # Inventory (left column)
+            inv_text = f"{item}: {self.person.inventory[item]}"
+            screen.blit(self.font_text.render(inv_text, True, BLACK), (self.x + 10, y_offset))
+            
+            # Prices (right column)
+            price_text = f"${self.person.prices[item]:.2f}"
+            screen.blit(self.font_text.render(price_text, True, BLACK), (self.x + 115, y_offset))
             y_offset += 15
 
 

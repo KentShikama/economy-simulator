@@ -7,12 +7,16 @@ class EconomySimulator:
         self.grid = Grid(GRID_WIDTH, GRID_HEIGHT)
 
         # Initialize people with grid positions
+        # City A: Water Collectors
+        # City B: Fertilizer Creators  
+        # City C: Farmers
+        # Peddlers: Distributed across all cities
         self.people = [
-            WaterCollector(name="Digger", city="A", money=100),
-            FertilizerCreator(name="Dirt", city="B", money=100),
-            Farmer(name="Farmer Joe", city="C", money=100),
-            Peddler(name="Carrier X", city="A", money=100),
-            Peddler(name="Carrier Y", city="B", money=100),
+            WaterCollector(name="Digger", city="A", money=1000),
+            FertilizerCreator(name="Dirt", city="B", money=1000),
+            Farmer(name="Farmer Joe", city="C", money=1000),
+            Peddler(name="Carrier X", city="A", money=1000),
+            Peddler(name="Carrier Y", city="B", money=1000),
         ]
 
         # Place people in their starting cities (center of each city)

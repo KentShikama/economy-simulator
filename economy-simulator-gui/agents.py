@@ -9,10 +9,10 @@ from grid import Grid
 FULLNESS_ADDITION = 20
 
 # Price adjustment constants
-PRICE_ADJUSTMENT_RATE = 0.05
+PRICE_ADJUSTMENT_RATE = 0.03
 
 # Peddler inventory limit
-MAX_INVENTORY_PEDDLER = 20
+MAX_INVENTORY_PEDDLER = 40
 
 
 class ActionType(Enum):
@@ -41,8 +41,8 @@ class Person:
     grid_x: int = 0
     grid_y: int = 0
     fullness: int = 100
-    inventory: Dict[str, int] = field(default_factory=lambda: {'water': 0, 'fertilizer': 0, 'apple': 10})
-    prices: Dict[str, float] = field(default_factory=lambda: {'water': 1, 'fertilizer': 1, 'apple': 1})
+    inventory: Dict[str, int] = field(default_factory=lambda: {'water': 0, 'fertilizer': 0, 'apple': 20})
+    prices: Dict[str, float] = field(default_factory=lambda: {'water': 10, 'fertilizer': 10, 'apple': 10})
 
     def update_position(self, grid: Grid):
         """Update the person's current city based on their grid position"""
@@ -154,7 +154,7 @@ class WaterCollector(Person):
         for i, action in enumerate(actions):
             if action == "consume_apple":
                 if self.inventory["apple"] > 0:
-                    weights[i] = max(0, 80 - self.fullness)
+                    weights[i] = max(0, 80 - self.fullness, 1000 if self.fullness < 20 else 0)
             elif action == "buy_apple":
                 other_people_in_city_with_apple = [person for person in other_people_in_city if
                                                    person.inventory["apple"] > 0]
@@ -199,7 +199,7 @@ class FertilizerCreator(Person):
         for i, action in enumerate(actions):
             if action == "consume_apple":
                 if self.inventory["apple"] > 0:
-                    weights[i] = max(0, 80 - self.fullness)
+                    weights[i] = max(0, 80 - self.fullness, 1000 if self.fullness < 20 else 0)
             elif action == "buy_apple":
                 other_people_in_city_with_apple = [person for person in other_people_in_city if
                                                    person.inventory["apple"] > 0]
@@ -251,7 +251,7 @@ class Farmer(Person):
         for i, action in enumerate(actions):
             if action == "consume_apple":
                 if self.inventory["apple"] > 0:
-                    weights[i] = max(0, 80 - self.fullness)
+                    weights[i] = max(0, 80 - self.fullness, 1000 if self.fullness < 20 else 0)
             elif action == "buy_water":
                 other_people_in_city_with_water = [person for person in other_people_in_city if
                                                    person.inventory["water"] > 0]
@@ -319,13 +319,11 @@ class Peddler(Person):
     def build_weights(self, actions, other_people):
         weights = [0 for _action in actions]
         other_people_in_city = [person for person in other_people if person.city == self.city and self.city is not None]
-        other_people_in_other_cities = [person for person in other_people if
-                                        person.city != self.city and person.city is not None]
 
         for i, action in enumerate(actions):
             if action == "consume_apple":
                 if self.inventory["apple"] > 0:
-                    weights[i] = max(0, 80 - self.fullness)
+                    weights[i] = max(0, 80 - self.fullness, 1000 if self.fullness < 20 else 0)
             elif 'buy' in action and self.city is not None:  # Can only buy in cities
                 item = action.split('_')[1]
                 other_people_in_city_with_item = [person for person in other_people_in_city if
@@ -333,25 +331,20 @@ class Peddler(Person):
                 if other_people_in_city_with_item and self.inventory[item] < MAX_INVENTORY_PEDDLER:
                     seller = min(other_people_in_city_with_item, key=lambda x: x.prices[item])
                     can_afford = self.money >= seller.prices[item]
-                    if other_people_in_other_cities:
-                        avg_price = sum([person.prices[item] for person in other_people_in_other_cities]) / len(
-                            other_people_in_other_cities)
-                        profit_margin = (avg_price - seller.prices[item]) / seller.prices[item] if seller.prices[
-                                                                                                       item] > 0 else 0
-                        if can_afford and profit_margin > 0:
-                            weights[i] = max(1, int(profit_margin * 10))
+                    avg_price = sum([person.prices[item] for person in other_people]) / len(other_people) if other_people else seller.prices[item]
+                    profit_margin = (avg_price - seller.prices[item]) / seller.prices[item] if seller.prices[item] > 0 else 0
+                    if can_afford and profit_margin > 0:
+                        weights[i] = max(1, int(profit_margin * 10))
             elif 'sell' in action and self.city is not None:  # Can only sell in cities
                 item = action.split('_')[1]
                 if self.inventory[item] > 0:
                     buyer_candidates = [person for person in other_people_in_city]
                     if buyer_candidates:
                         buyer = max(buyer_candidates, key=lambda x: x.prices[item])
-                        if other_people_in_other_cities:
-                            avg_price = sum([person.prices[item] for person in other_people_in_other_cities]) / len(
-                                other_people_in_other_cities)
-                            profit_margin = (buyer.prices[item] - avg_price) / avg_price if avg_price > 0 else 0
-                            if profit_margin > 0:
-                                weights[i] = max(1, int(profit_margin * 10))
+                        avg_price = sum([person.prices[item] for person in other_people]) / len(other_people) if other_people else buyer.prices[item]
+                        profit_margin = (buyer.prices[item] - avg_price) / avg_price if avg_price > 0 else 0
+                        if profit_margin > 0:
+                            weights[i] = max(1, int(profit_margin * 10))
             elif 'move_to_' in action:
                 destination_city = action.split('_')[-1]
 
@@ -360,9 +353,9 @@ class Peddler(Person):
                     weights[i] = 0
                     continue
 
-                # If we already have this city as our target, heavily weight continuing toward it
+                # If we already have this city as our target, continue toward it
                 if self.target_city == destination_city:
-                    weights[i] = 10  # High weight for persistence
+                    weights[i] = 1
                 else:
                     # Basic weight for new destinations when not currently traveling
                     if self.target_city is None:
