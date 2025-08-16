@@ -9,7 +9,7 @@ pygame.init()
 # Constants
 WINDOW_WIDTH = 1400
 WINDOW_HEIGHT = 800
-FPS = 60
+FPS = 30
 
 # Colors
 WHITE = (255, 255, 255)
@@ -209,7 +209,7 @@ class EconomySimulatorGame:
         self.simulator = EconomySimulator()
         self.running = True
         self.paused = True
-        self.simulation_speed = 10  # milliseconds between steps
+        self.simulation_speed = 3  # milliseconds between steps
         self.last_step_time = 0
         
         # UI elements

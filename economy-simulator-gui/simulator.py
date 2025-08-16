@@ -7,7 +7,10 @@ from enum import Enum
 FULLNESS_ADDITION = 20
 
 # Price adjustment constants
-PRICE_ADJUSTMENT_RATE = 0.1
+PRICE_ADJUSTMENT_RATE = 0.05
+
+# Peddler inventory limit
+MAX_INVENTORY_PEDDLER = 20
 
 
 class ActionType(Enum):
@@ -64,24 +67,31 @@ class Person:
             return f"{self.name} consumed {item}."
         return f"{self.name} has no {item} to consume."
 
-    def adjust_prices_after_action(self, action_result: ActionResult):
-        """Adjust prices based on the action result."""
-        action_type = action_result.action_type
-        item = action_result.item
-        other_person = action_result.other_person
+    def adjust_prices(self, action_result: ActionResult):
+        if isinstance(action_result, ActionResult):
+            action_type = action_result.action_type
+            item = action_result.item
+            other_person = action_result.other_person
 
-        if action_type == ActionType.BUY_SUCCESS:
-            self.prices[item] *= (1 - PRICE_ADJUSTMENT_RATE)
-            other_person.prices[item] *= (1 + PRICE_ADJUSTMENT_RATE)
-        elif action_type == ActionType.BUY_REFUSED:
-            self.prices[item] *= (1 + PRICE_ADJUSTMENT_RATE)
-        elif action_type == ActionType.SELL_SUCCESS:
-            self.prices[item] *= (1 + PRICE_ADJUSTMENT_RATE)
-            other_person.prices[item] *= (1 - PRICE_ADJUSTMENT_RATE)
-        elif action_type == ActionType.SELL_REFUSED:
-            self.prices[item] *= (1 - PRICE_ADJUSTMENT_RATE)
-        elif action_type in [ActionType.PRODUCE, ActionType.COLLECT, ActionType.GROW]:
-            self.prices[item] *= (1 - PRICE_ADJUSTMENT_RATE)
+            if action_type == ActionType.BUY_SUCCESS:
+                self.prices[item] *= (1 - PRICE_ADJUSTMENT_RATE)
+                other_person.prices[item] *= (1 + PRICE_ADJUSTMENT_RATE)
+            elif action_type == ActionType.BUY_REFUSED:
+                self.prices[item] *= (1 + PRICE_ADJUSTMENT_RATE)
+            elif action_type == ActionType.SELL_SUCCESS:
+                self.prices[item] *= (1 + PRICE_ADJUSTMENT_RATE)
+                other_person.prices[item] *= (1 - PRICE_ADJUSTMENT_RATE)
+            elif action_type == ActionType.SELL_REFUSED:
+                self.prices[item] *= (1 - PRICE_ADJUSTMENT_RATE)
+            elif action_type in [ActionType.PRODUCE, ActionType.COLLECT]:
+                self.prices[item] *= (1 - PRICE_ADJUSTMENT_RATE)
+            elif action_type == ActionType.GROW:
+                self.prices[item] *= (1 - PRICE_ADJUSTMENT_RATE)
+                self.prices['water'] *= (1 + PRICE_ADJUSTMENT_RATE)
+                self.prices['fertilizer'] *= (1 + PRICE_ADJUSTMENT_RATE)
+
+        if self.fullness < 70:
+            self.prices['apple'] *= (1 + PRICE_ADJUSTMENT_RATE / 5)
 
     def buy(self, item, other_people: List['Person']):
         sellers = [person for person in other_people if person.inventory[item] > 0 and person.city == self.city]
@@ -99,8 +109,10 @@ class Person:
                 message = f"{self.name} bought {item} from {seller.name} for {price}."
                 return ActionResult(ActionType.BUY_SUCCESS, item, message, seller)
             else:
-                return f"{self.name} cannot afford {item}."
-        return f"{self.name} tried to buy {item}, but it is out of stock."
+                message = f"{self.name} cannot afford {item}."
+                return ActionResult(ActionType.BUY_REFUSED, item, message, seller)
+        message = f"{self.name} tried to buy {item}, but it is out of stock."
+        return ActionResult(ActionType.BUY_REFUSED, item, message, None)
 
     def sell(self, item, other_people: List['Person']):
         if self.inventory[item] <= 0:
@@ -120,8 +132,10 @@ class Person:
                 buyer.inventory[item] += 1
                 message = f"{self.name} sold {item} to {buyer.name} for {price}."
                 return ActionResult(ActionType.SELL_SUCCESS, item, message, buyer)
-            return f"{self.name} cannot sell {item} because no one can afford it."
-        return f"{self.name} tried to sell {item}, but there are no buyers in {self.city}."
+            message = f"{self.name} cannot sell {item} because no one can afford it."
+            return ActionResult(ActionType.SELL_REFUSED, item, message, buyer)
+        message = f"{self.name} tried to sell {item}, but there are no buyers in {self.city}."
+        return ActionResult(ActionType.SELL_REFUSED, item, message, None)
 
 
 @dataclass
@@ -165,8 +179,8 @@ class WaterCollector(Person):
 
     def collect_water(self):
         self.inventory['water'] += 10
-        self.prices['water'] *= (1 - PRICE_ADJUSTMENT_RATE)
-        return f"{self.name} collected 10 units of water."
+        message = f"{self.name} collected 10 units of water."
+        return ActionResult(ActionType.COLLECT, 'water', message)
 
 
 @dataclass
@@ -210,8 +224,8 @@ class FertilizerCreator(Person):
 
     def produce_fertilizer(self):
         self.inventory['fertilizer'] += 10
-        self.prices['fertilizer'] *= (1 - PRICE_ADJUSTMENT_RATE)
-        return f"{self.name} produced 10 units of fertilizer."
+        message = f"{self.name} produced 10 units of fertilizer."
+        return ActionResult(ActionType.PRODUCE, 'fertilizer', message)
 
 
 @dataclass
@@ -277,10 +291,8 @@ class Farmer(Person):
             self.inventory['water'] -= 1
             self.inventory['fertilizer'] -= 1
             self.inventory['apple'] += 10
-            self.prices['water'] *= (1 + PRICE_ADJUSTMENT_RATE)
-            self.prices['fertilizer'] *= (1 + PRICE_ADJUSTMENT_RATE)
-            self.prices['apple'] *= (1 - PRICE_ADJUSTMENT_RATE)
-            return f"{self.name} grew 10 units of apple."
+            message = f"{self.name} grew 10 units of apple."
+            return ActionResult(ActionType.GROW, 'apple', message)
         return f"{self.name} does not have enough resources to grow apples."
 
 
@@ -319,24 +331,24 @@ class Peddler(Person):
                 item = action.split('_')[1]
                 other_people_in_city_with_item = [person for person in other_people_in_city if
                                                   person.inventory[item] > 0]
-                if other_people_in_city_with_item:
+                if other_people_in_city_with_item and self.inventory[item] < MAX_INVENTORY_PEDDLER:
                     seller = min(other_people_in_city_with_item, key=lambda x: x.prices[item])
                     can_afford = self.money >= seller.prices[item]
-                    is_profitable = seller.prices[item] < (
-                            sum([person.prices[item] for person in other_people_in_other_cities]) / len(
-                        other_people_in_other_cities))
-                    if can_afford and is_profitable:
-                        weights[i] = 1
+                    avg_price = sum([person.prices[item] for person in other_people_in_other_cities]) / len(
+                        other_people_in_other_cities)
+                    profit_margin = (avg_price - seller.prices[item]) / seller.prices[item]
+                    if can_afford and profit_margin > 0:
+                        weights[i] = max(1, int(profit_margin * 10))
             elif 'sell' in action:
                 item = action.split('_')[1]
                 other_people_in_city = [person for person in other_people if person.city == self.city]
                 if other_people_in_city and self.inventory[item] > 0:
                     buyer = max(other_people_in_city, key=lambda x: x.prices[item])
-                    is_profitable = buyer.prices[item] > (
-                            sum([person.prices[item] for person in other_people_in_other_cities]) / len(
-                        other_people_in_other_cities))
-                    if is_profitable:
-                        weights[i] = 1
+                    avg_price = sum([person.prices[item] for person in other_people_in_other_cities]) / len(
+                        other_people_in_other_cities)
+                    profit_margin = (buyer.prices[item] - avg_price) / avg_price
+                    if profit_margin > 0:
+                        weights[i] = max(1, int(profit_margin * 10))
             elif 'move' in action:
                 city = action.split('_')[1]
                 if city != self.city and not self.destination:
@@ -397,18 +409,14 @@ class EconomySimulator:
             person.fullness -= 1
 
             result = None
-            if person.destination:  # Don't act while moving
-                # but they can still consume
+            if person.destination:  # Don't act while moving but they can still consume
                 if person.fullness < 25 and person.inventory['apple'] > 0:
                     result = person.consume('apple')
             else:
                 result = person.act([p for p in self.people if p != person])
-                # Apply price adjustments after the action if it's an ActionResult
-                if isinstance(result, ActionResult):
-                    person.adjust_prices_after_action(result)
+                person.adjust_prices(result)
 
             if result:
-                # Extract message from ActionResult or use string directly
                 action_text = result.message if isinstance(result, ActionResult) else result
                 day_actions.append({
                     'person': person.name,
