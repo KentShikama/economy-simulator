@@ -196,7 +196,7 @@ class Person:
                 self.prices['fertilizer'] *= (1 + PRICE_ADJUSTMENT_RATE)
 
         if self.fullness < 70:
-            self.prices['apple'] *= (1 + PRICE_ADJUSTMENT_RATE / 5)
+            self.prices['apple'] *= (1 + PRICE_ADJUSTMENT_RATE)
 
     def buy(self, item, other_people: List['Person']):
         # People can trade if they're in the same city (including None for traveling)
