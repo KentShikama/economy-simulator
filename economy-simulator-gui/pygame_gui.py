@@ -209,9 +209,9 @@ class EconomySimulatorGame:
         self.simulator = EconomySimulator()
         self.running = True
         self.paused = True
-        self.simulation_speed = 3  # milliseconds between steps
-        self.last_step_time = 0
-        self.speed_multiplier = 1  # Number of days to simulate per update
+        self.last_update_time = pygame.time.get_ticks()
+        self.days_per_second = 1.0  # Simulation speed
+        self.day_accumulator = 0.0
         
         # UI elements
         self.play_button = Button(20, WINDOW_HEIGHT - 60, 100, 40, "Play")
@@ -246,41 +246,38 @@ class EconomySimulatorGame:
             if self.reset_button.handle_event(event):
                 self.reset_simulation()
             
-            # Speed control with arrow keys
+            # Speed control with arrow keys and presets
             if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_LEFT:
-                    self.simulation_speed = min(5000, self.simulation_speed + 100)
-                elif event.key == pygame.K_RIGHT:
-                    self.simulation_speed = max(100, self.simulation_speed - 100)
-                elif event.key == pygame.K_UP:
-                    self.speed_multiplier = min(100, self.speed_multiplier + 1)
+                if event.key == pygame.K_UP:
+                    self.days_per_second = min(100, self.days_per_second * 2)
                 elif event.key == pygame.K_DOWN:
-                    self.speed_multiplier = max(1, self.speed_multiplier - 1)
-                # Quick speed presets
+                    self.days_per_second = max(0.1, self.days_per_second / 2)
+                # Speed presets
                 elif event.key == pygame.K_1:
-                    self.speed_multiplier = 1
+                    self.days_per_second = 0.5
                 elif event.key == pygame.K_2:
-                    self.speed_multiplier = 5
+                    self.days_per_second = 1.0
                 elif event.key == pygame.K_3:
-                    self.speed_multiplier = 10
+                    self.days_per_second = 5.0
                 elif event.key == pygame.K_4:
-                    self.speed_multiplier = 25
+                    self.days_per_second = 10.0
                 elif event.key == pygame.K_5:
-                    self.speed_multiplier = 50
+                    self.days_per_second = 25.0
     
-    def step_simulation(self, days_to_simulate=1):
+    def step_simulation(self):
         try:
-            for _ in range(days_to_simulate):
-                # Run all 20 ticks for a complete day
-                for _ in range(self.simulator.ticks_per_day):
-                    actions = self.simulator.tick()
-                    
-                    # Add actions to log and print to stdout
-                    for action in actions:
-                        log_entry = f"Day {self.simulator.day}: {action['action']}"
-                        self.action_log.append(log_entry)
-                        if days_to_simulate == 1:  # Only print to stdout in normal speed
-                            print(log_entry)
+            # Run all 20 ticks for a complete day
+            actions = []
+            for _ in range(self.simulator.ticks_per_day):
+                day_actions = self.simulator.tick()
+                actions.extend(day_actions)
+            
+            # Add actions to log
+            for action in actions:
+                log_entry = f"Day {self.simulator.day}: {action['action']}"
+                self.action_log.append(log_entry)
+                if self.days_per_second <= 2:  # Only print at slow speeds
+                    print(log_entry)
             
             # Keep only recent entries
             if len(self.action_log) > self.max_log_entries:
@@ -302,9 +299,18 @@ class EconomySimulatorGame:
     def update(self):
         current_time = pygame.time.get_ticks()
         
-        if not self.paused and current_time - self.last_step_time > self.simulation_speed:
-            self.step_simulation(self.speed_multiplier)
-            self.last_step_time = current_time
+        if not self.paused:
+            # Calculate elapsed time and accumulate days
+            elapsed_ms = current_time - self.last_update_time
+            elapsed_sec = elapsed_ms / 1000.0
+            self.day_accumulator += elapsed_sec * self.days_per_second
+            
+            # Run full days when accumulated
+            while self.day_accumulator >= 1.0:
+                self.step_simulation()
+                self.day_accumulator -= 1.0
+        
+        self.last_update_time = current_time
     
     def draw(self):
         self.screen.fill(WHITE)
@@ -366,11 +372,14 @@ class EconomySimulatorGame:
         self.reset_button.draw(self.screen)
         
         # Speed indicator
-        speed_text = self.font.render(f"Delay: {self.simulation_speed/1000:.1f}s (← →) | Days/frame: {self.speed_multiplier} (↑ ↓)", True, BLACK)
+        if self.days_per_second >= 1:
+            speed_text = self.font.render(f"Speed: {self.days_per_second:.0f} days/sec (↑↓ to adjust)", True, BLACK)
+        else:
+            speed_text = self.font.render(f"Speed: {self.days_per_second:.1f} days/sec (↑↓ to adjust)", True, BLACK)
         self.screen.blit(speed_text, (360, WINDOW_HEIGHT - 50))
         
         # Speed preset hint
-        preset_text = self.small_font.render("Press 1-5 for speed presets (1x, 5x, 10x, 25x, 50x)", True, DARK_GRAY)
+        preset_text = self.small_font.render("Press 1-5: 0.5x, 1x, 5x, 10x, 25x speed", True, DARK_GRAY)
         self.screen.blit(preset_text, (360, WINDOW_HEIGHT - 30))
         
         # Update display
