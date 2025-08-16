@@ -40,8 +40,6 @@ class Person:
     money: float
     grid_x: int = 0
     grid_y: int = 0
-    destination_x: Optional[int] = None
-    destination_y: Optional[int] = None
     fullness: int = 100
     inventory: Dict[str, int] = field(default_factory=lambda: {'water': 0, 'fertilizer': 0, 'apple': 10})
     prices: Dict[str, float] = field(default_factory=lambda: {'water': 1, 'fertilizer': 1, 'apple': 1})
@@ -137,7 +135,7 @@ class Person:
 @dataclass
 class WaterCollector(Person):
     def act(self, other_people: List['Person']):
-        actions = ['collect_water', 'sell_water', 'buy_apple', 'consume_apple', 'do_nothing']
+        actions = ['collect_water', 'sell_water', 'buy_apple', 'consume_apple']
         weights = self.build_weights(actions, other_people)
         action = random.choices(actions, weights=weights, k=1)[0]
         if action == 'collect_water':
@@ -298,8 +296,8 @@ class Peddler(Person):
 
     def act(self, other_people: List['Person'], grid: Grid):
         actions = ['move_to_A', 'move_to_B', 'move_to_C', 'buy_water', 'buy_fertilizer', 'buy_apple',
-                   'sell_water', 'sell_fertilizer', 'sell_apple', 'consume_apple', 'do_nothing']
-        weights = self.build_weights(actions, other_people, grid)
+                   'sell_water', 'sell_fertilizer', 'sell_apple', 'consume_apple']
+        weights = self.build_weights(actions, other_people)
         try:
             action = random.choices(actions, weights=weights, k=1)[0]
         except ValueError:
@@ -318,7 +316,7 @@ class Peddler(Person):
             return self.consume('apple')
         return "Invalid action"
 
-    def build_weights(self, actions, other_people, grid: Grid):
+    def build_weights(self, actions, other_people):
         weights = [0 for _action in actions]
         other_people_in_city = [person for person in other_people if person.city == self.city and self.city is not None]
         other_people_in_other_cities = [person for person in other_people if
