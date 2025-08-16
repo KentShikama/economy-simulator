@@ -337,8 +337,7 @@ class EconomySimulatorGame:
             for action in actions:
                 log_entry = f"Day {self.simulator.day}: {action['action']}"
                 self.action_log.append(log_entry)
-                if self.days_per_second <= 2:  # Only print at slow speeds
-                    print(log_entry)
+                print(log_entry)  # Always print regardless of speed
 
             # Keep only recent entries
             if len(self.action_log) > self.max_log_entries:

@@ -9,7 +9,7 @@ from grid import Grid
 FULLNESS_ADDITION = 20
 
 # Price adjustment constants
-PRICE_ADJUSTMENT_RATE = 0.01
+PRICE_ADJUSTMENT_RATE = 0.05
 
 # Peddler inventory limit
 MAX_INVENTORY_PEDDLER = 50
