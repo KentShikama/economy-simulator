@@ -408,15 +408,9 @@ class Farmer(Person):
 
 @dataclass
 class Peddler(Person):
-    path: List[Tuple[int, int]] = field(default_factory=list)
-    path_index: int = 0
     target_city: Optional[str] = None
     
     def act(self, other_people: List['Person'], grid: Grid):
-        # If we have a path to follow, move along it
-        if self.path and self.path_index < len(self.path):
-            return self.follow_path(grid)
-        
         actions = ['move_to_A', 'move_to_B', 'move_to_C', 'buy_water', 'buy_fertilizer', 'buy_apple', 
                    'sell_water', 'sell_fertilizer', 'sell_apple', 'consume_apple', 'do_nothing']
         weights = self.build_weights(actions, other_people, grid)
@@ -427,7 +421,7 @@ class Peddler(Person):
         
         if 'move_to_' in action:
             destination_city = action.split('_')[-1]
-            return self.set_destination(destination_city, grid)
+            return self.move_toward_target(grid, destination_city)
         elif 'buy' in action:
             item = action.split('_')[1]
             return self.buy(item, other_people)
@@ -493,62 +487,54 @@ class Peddler(Person):
         
         return weights
 
-    def set_destination(self, destination_city: str, grid: Grid):
-        """Set a destination city and compute the path to it"""
-        if destination_city == self.city:
-            return f"{self.name} is already in {destination_city}."
-        
-        # Find path to the destination city
-        self.path = grid.find_path_to_city(self.grid_x, self.grid_y, destination_city)
-        self.path_index = 0
-        self.target_city = destination_city
-        
-        if self.path:
-            return f"{self.name} is heading to {destination_city}."
-        else:
-            return f"{self.name} cannot find a path to {destination_city}."
     
-    def follow_path(self, grid: Grid):
-        """Follow the computed path to the destination"""
-        if not self.path or self.path_index >= len(self.path):
-            self.path = []
-            self.path_index = 0
-            self.target_city = None
-            return f"{self.name} has reached their destination."
+    def move_toward_target(self, grid: Grid, destination_city: str = None):
+        """Move one step toward the target city"""
+        # Set new target if provided
+        if destination_city:
+            # Check if already at destination
+            if destination_city == self.city:
+                return f"{self.name} is already in {destination_city}."
+            self.target_city = destination_city
         
-        # Get next position in path
-        next_x, next_y = self.path[self.path_index]
+        if not self.target_city:
+            return f"{self.name} has no destination."
         
-        # Move to next position
+        # Get path from current position to target
+        path = grid.find_path_to_city(self.grid_x, self.grid_y, self.target_city)
+        
+        if not path:
+            # Already at destination or no path found
+            if self.city == self.target_city:
+                self.target_city = None
+                return f"{self.name} has arrived at {self.city}."
+            else:
+                return f"{self.name} cannot find a path to {self.target_city}."
+        
+        # Move to next position (first step in path)
+        next_x, next_y = path[0]
         old_city = self.city
         self.grid_x = next_x
         self.grid_y = next_y
-        self.path_index += 1
         self.update_position(grid)
         
         # Check if we entered or left a city
         if old_city != self.city:
             if self.city:
-                # Clear path when we reach the destination city
+                # Clear target when we reach the destination city
                 if self.city == self.target_city:
-                    self.path = []
-                    self.path_index = 0
                     self.target_city = None
                 return f"{self.name} entered {self.city}."
             else:
                 return f"{self.name} left {old_city}."
         else:
             # Calculate direction for descriptive message
-            if self.path_index > 1:
-                prev_x, prev_y = self.path[self.path_index - 2]
-            else:
-                prev_x, prev_y = self.grid_x, self.grid_y
-            
-            if next_x > prev_x:
+            old_x, old_y = self.grid_x - (next_x - self.grid_x), self.grid_y - (next_y - self.grid_y)
+            if next_x > old_x:
                 direction = "right"
-            elif next_x < prev_x:
+            elif next_x < old_x:
                 direction = "left"
-            elif next_y > prev_y:
+            elif next_y > old_y:
                 direction = "down"
             else:
                 direction = "up"
