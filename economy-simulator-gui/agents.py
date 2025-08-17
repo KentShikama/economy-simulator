@@ -230,7 +230,7 @@ class Farmer(Person):
         try:
             action = random.choices(actions, weights=weights, k=1)[0]
         except ValueError:
-            action = 'consume_apple'
+            action = 'consume_grain'
         if action == 'grow_grain':
             return self.grow_grain()
         elif action == 'buy_seed':
@@ -258,7 +258,7 @@ class Farmer(Person):
                 if other_people_in_city_with_seed:
                     seller = min(other_people_in_city_with_seed, key=lambda x: x.prices["seed"])
                     can_afford = self.money >= seller.prices["seed"]
-                    is_profitable = self.prices["grain"] > self.prices["fertilizer"] + seller.prices["seed"]
+                    is_profitable = 10 * self.prices["grain"] > self.prices["fertilizer"] + seller.prices["seed"]
                     if can_afford and is_profitable:
                         weights[i] = 1
             elif action == "buy_fertilizer":
@@ -267,7 +267,7 @@ class Farmer(Person):
                 if other_people_in_city_with_fertilizer:
                     seller = min(other_people_in_city_with_fertilizer, key=lambda x: x.prices["fertilizer"])
                     can_afford = self.money >= seller.prices["fertilizer"]
-                    is_profitable = self.prices["grain"] > self.prices["seed"] + seller.prices["fertilizer"]
+                    is_profitable = 10 * self.prices["grain"] > self.prices["seed"] + seller.prices["fertilizer"]
                     if can_afford and is_profitable:
                         weights[i] = 1
             elif action == "sell_grain":
