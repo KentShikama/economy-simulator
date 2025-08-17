@@ -1,5 +1,8 @@
 from agents import SeedCollector, FertilizerCreator, Farmer, Peddler, ActionResult
 from grid import Grid, GRID_WIDTH, GRID_HEIGHT
+import json
+import os
+from datetime import datetime
 
 
 class EconomySimulator:
@@ -31,6 +34,41 @@ class EconomySimulator:
         self.action_log = []
         self.ticks_per_day = 20
         self.tick_count = 0
+        
+        # Logging setup - always enabled
+        self.log_file = "economy_log.json"
+        self._init_log_file()
+
+    def _init_log_file(self):
+        """Initialize the log file with metadata"""
+        metadata = {
+            "created_at": datetime.now().isoformat(),
+            "grid_width": GRID_WIDTH,
+            "grid_height": GRID_HEIGHT,
+            "initial_agents": [
+                {
+                    "name": person.name,
+                    "type": type(person).__name__,
+                    "city": person.city,
+                    "initial_money": person.money,
+                    "grid_x": person.grid_x,
+                    "grid_y": person.grid_y
+                }
+                for person in self.people
+            ]
+        }
+        
+        # Write metadata as first line
+        with open(self.log_file, 'w') as f:
+            f.write(json.dumps({"metadata": metadata}) + '\n')
+
+    def _append_to_log(self, day_data):
+        """Append daily data to log file"""
+        try:
+            with open(self.log_file, 'a') as f:
+                f.write(json.dumps(day_data) + '\n')
+        except Exception as e:
+            print(f"Warning: Failed to write to log file: {e}")
 
     def tick(self):
         # Update positions based on grid
@@ -75,10 +113,14 @@ class EconomySimulator:
                 })
 
         if day_actions:
-            self.action_log.append({
+            day_log = {
                 'day': self.day,
                 'actions': day_actions
-            })
+            }
+            self.action_log.append(day_log)
+            
+            # Log to file if enabled
+            self._append_to_log(day_log)
 
         return day_actions
 
@@ -90,6 +132,7 @@ def main():
     """Run the simulator in text-only mode"""
     print("Economy Simulator - Text Mode")
     print("=" * 50)
+    print("Logging enabled - data will be saved to economy_log.json")
 
     simulator = EconomySimulator()
 
