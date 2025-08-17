@@ -12,7 +12,7 @@ FULLNESS_ADDITION = 20
 PRICE_ADJUSTMENT_RATE = 0.05
 
 # Peddler inventory limit
-MAX_INVENTORY_PEDDLER = 50
+MAX_INVENTORY_PEDDLER = 100
 
 
 class ActionType(Enum):
@@ -41,7 +41,7 @@ class Person:
     grid_x: int = 0
     grid_y: int = 0
     fullness: int = 100
-    inventory: Dict[str, int] = field(default_factory=lambda: {'seed': 0, 'fertilizer': 0, 'grain': 40})
+    inventory: Dict[str, int] = field(default_factory=lambda: {'seed': 0, 'fertilizer': 0, 'grain': 50})
     prices: Dict[str, float] = field(default_factory=lambda: {'seed': 10, 'fertilizer': 10, 'grain': 10})
 
     def update_position(self, grid: Grid):
