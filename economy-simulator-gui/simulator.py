@@ -1,7 +1,6 @@
 from agents import SeedCollector, FertilizerCreator, Farmer, Peddler, ActionResult
 from grid import Grid, GRID_WIDTH, GRID_HEIGHT
 import json
-import os
 from datetime import datetime
 
 
@@ -109,7 +108,8 @@ class EconomySimulator:
                     'fullness': person.fullness,
                     'prices': dict(person.prices),
                     'inventory': dict(person.inventory),
-                    'action': action_text
+                    'action': action_text,
+                    'weights': dict(person.latest_weights)
                 })
 
         if day_actions:

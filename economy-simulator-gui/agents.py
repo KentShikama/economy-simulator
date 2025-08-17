@@ -43,6 +43,7 @@ class Person:
     fullness: int = 100
     inventory: Dict[str, int] = field(default_factory=lambda: {'seed': 0, 'fertilizer': 0, 'grain': 50})
     prices: Dict[str, float] = field(default_factory=lambda: {'seed': 10, 'fertilizer': 10, 'grain': 10})
+    latest_weights: Dict[str, float] = field(default_factory=dict)
 
     def update_position(self, grid: Grid):
         """Update the person's current city based on their grid position"""
@@ -137,6 +138,7 @@ class SeedCollector(Person):
     def act(self, other_people: List['Person']):
         actions = ['collect_seed', 'sell_seed', 'buy_grain', 'consume_grain']
         weights = self.build_weights(actions, other_people)
+        self.latest_weights = dict(zip(actions, weights))
         action = random.choices(actions, weights=weights, k=1)[0]
         if action == 'collect_seed':
             return self.collect_seed()
@@ -182,6 +184,7 @@ class FertilizerCreator(Person):
     def act(self, other_people: List['Person']):
         actions = ['produce_fertilizer', 'sell_fertilizer', 'buy_grain', 'consume_grain']
         weights = self.build_weights(actions, other_people)
+        self.latest_weights = dict(zip(actions, weights))
         action = random.choices(actions, weights=weights, k=1)[0]
         if action == 'produce_fertilizer':
             return self.produce_fertilizer()
@@ -227,6 +230,7 @@ class Farmer(Person):
     def act(self, other_people: List['Person']):
         actions = ['grow_grain', 'buy_seed', 'buy_fertilizer', 'sell_grain', 'consume_grain', 'do_nothing']
         weights = self.build_weights(actions, other_people)
+        self.latest_weights = dict(zip(actions, weights))
         try:
             action = random.choices(actions, weights=weights, k=1)[0]
         except ValueError:
@@ -298,6 +302,7 @@ class Peddler(Person):
         actions = ['move_to_Seeds', 'move_to_Mulch', 'move_to_Harvest', 'buy_seed', 'buy_fertilizer', 'buy_grain',
                    'sell_seed', 'sell_fertilizer', 'sell_grain', 'consume_grain']
         weights = self.build_weights(actions, other_people)
+        self.latest_weights = dict(zip(actions, weights))
         try:
             action = random.choices(actions, weights=weights, k=1)[0]
         except ValueError:

@@ -64,7 +64,8 @@ class EconomyAnalytics:
                     'grain_price': action['prices']['grain'],
                     'seed_inventory': action['inventory']['seed'],
                     'fertilizer_inventory': action['inventory']['fertilizer'],
-                    'grain_inventory': action['inventory']['grain']
+                    'grain_inventory': action['inventory']['grain'],
+                    'weights': action.get('weights', {})
                 }
                 rows.append(row)
         return pd.DataFrame(rows)
@@ -127,17 +128,28 @@ class EconomyAnalytics:
         plt.savefig(f"{output_dir}/07_supply_demand.png", dpi=150, bbox_inches='tight')
         plt.close()
         
+        # Chart 8: Agent decision weights over last 100 days
+        plt.figure(figsize=(15, 12))
+        self.chart_agent_weights()
+        plt.tight_layout()
+        plt.savefig(f"{output_dir}/08_agent_weights.png", dpi=150, bbox_inches='tight')
+        plt.close()
+        
         print(f"All charts saved to {output_dir}/ directory:")
     
     def chart_agent_wealth(self):
         """Chart 1: Individual agent wealth trajectories over time"""
         for person in self.df['person'].unique():
             person_data = self.df[self.df['person'] == person].groupby('day')['money'].first()
-            plt.plot(person_data.index, person_data.values, marker='o', markersize=3, linewidth=2, label=person)
+            # Replace zero/negative values with small positive number for log scale
+            money_values = person_data.values
+            money_values = np.maximum(money_values, 0.01)  # Minimum value for log scale
+            plt.plot(person_data.index, money_values, marker='o', markersize=3, linewidth=2, label=person)
         
-        plt.title('Agent Wealth Over Time', fontsize=12, fontweight='bold')
+        plt.title('Agent Wealth Over Time (Log Scale)', fontsize=12, fontweight='bold')
         plt.xlabel('Day')
         plt.ylabel('Money ($)')
+        plt.yscale('log')
         plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=8)
         plt.grid(True, alpha=0.3)
     
@@ -325,7 +337,7 @@ class EconomyAnalytics:
     
     def chart_market_efficiency(self):
         """Chart 8: Market efficiency - price spreads between cities"""
-        # Calculate price spreads for each resource
+        # Calculate price spreads for each resource using ratios (max/min)
         spreads_data = {'seed': [], 'fertilizer': [], 'grain': [], 'days': []}
         
         for day in sorted(self.df['day'].unique()):
@@ -334,21 +346,35 @@ class EconomyAnalytics:
             for resource in ['seed', 'fertilizer', 'grain']:
                 price_col = f'{resource}_price'
                 prices = day_data[price_col].values
-                if len(prices) > 1:
-                    spread = prices.max() - prices.min()
-                    spreads_data[resource].append(spread)
+                # Filter out zeros to avoid division by zero
+                non_zero_prices = prices[prices > 0]
+                
+                if len(non_zero_prices) > 1:
+                    # Use ratio (max/min) as the spread measure for log scale
+                    min_price = non_zero_prices.min()
+                    max_price = non_zero_prices.max()
+                    
+                    # Handle extreme ratios that cause overflow
+                    if min_price == 0 or max_price / min_price > 1e100:
+                        # Cap at 1e100 to prevent overflow while still showing extreme inefficiency
+                        spread_ratio = 1e100
+                    else:
+                        spread_ratio = max_price / min_price
+                    
+                    spreads_data[resource].append(spread_ratio)
                 else:
-                    spreads_data[resource].append(0)
+                    # If only one non-zero price or all zeros, perfect efficiency (ratio = 1)
+                    spreads_data[resource].append(1.0)
             
             spreads_data['days'].append(day)
         
-        plt.plot(spreads_data['days'], spreads_data['seed'], marker='o', markersize=3, label='Seed spread', linewidth=2)
-        plt.plot(spreads_data['days'], spreads_data['fertilizer'], marker='s', markersize=3, label='Fertilizer spread', linewidth=2)
-        plt.plot(spreads_data['days'], spreads_data['grain'], marker='^', markersize=3, label='Grain spread', linewidth=2)
+        plt.plot(spreads_data['days'], spreads_data['seed'], marker='o', markersize=3, label='Seed spread ratio', linewidth=2)
+        plt.plot(spreads_data['days'], spreads_data['fertilizer'], marker='s', markersize=3, label='Fertilizer spread ratio', linewidth=2)
+        plt.plot(spreads_data['days'], spreads_data['grain'], marker='^', markersize=3, label='Grain spread ratio', linewidth=2)
         
-        plt.title('Price Spreads (Market Inefficiency) - Log Scale', fontsize=12, fontweight='bold')
+        plt.title('Price Spread Ratios (Market Inefficiency) - Log Scale', fontsize=12, fontweight='bold')
         plt.xlabel('Day')
-        plt.ylabel('Price Spread ($)')
+        plt.ylabel('Price Spread Ratio (Max/Min)')
         plt.yscale('log')
         plt.legend(fontsize=8)
         plt.grid(True, alpha=0.3)
@@ -487,20 +513,17 @@ class EconomyAnalytics:
         axes[0].set_ylabel('Seed Price ($)')
         axes[0].set_title('Resource Prices by Agent Over Time (Log Scale)', fontsize=12, fontweight='bold')
         axes[0].set_yscale('log')
-        axes[0].set_ylim(bottom=0.001)
         axes[0].legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=8)
         axes[0].grid(True, alpha=0.3)
         
         axes[1].set_ylabel('Fertilizer Price ($)')
         axes[1].set_yscale('log')
-        axes[1].set_ylim(bottom=0.001)
         axes[1].legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=8)
         axes[1].grid(True, alpha=0.3)
         
         axes[2].set_ylabel('Grain Price ($)')
         axes[2].set_xlabel('Day')
         axes[2].set_yscale('log')
-        axes[2].set_ylim(bottom=0.001)
         axes[2].legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=8)
         axes[2].grid(True, alpha=0.3)
         
@@ -576,32 +599,53 @@ class EconomyAnalytics:
                     city = day_data.iloc[0]['city']
                     axes[i].axvspan(day-0.4, day+0.4, alpha=0.3, color=city_colors[city])
             
-            # Plot movement events as markers
+            # Plot movement events as black markers
             movement_days = [event['day'] for event in travel_events if event['type'] == 'movement']
-            movement_cities = [event['city'] for event in travel_events if event['type'] == 'movement']
             
-            for day, city in zip(movement_days, movement_cities):
-                axes[i].scatter(day, 0.5, marker='>', s=50, color=city_colors[city], edgecolor='black', linewidth=1)
+            for day in movement_days:
+                axes[i].scatter(day, 0.7, marker='>', s=50, color='black', edgecolor='white', linewidth=1, alpha=0.8)
             
-            # Plot trade events
+            # Plot trade events with more detail
             trade_data = peddler_data[peddler_data['action'].str.contains('bought|sold', case=False, na=False)]
+            
+            # Different markers for different items
+            item_markers = {'seed': 'o', 'fertilizer': 's', 'grain': '^'}
+            
             for _, trade in trade_data.iterrows():
-                marker = 'o' if 'bought' in trade['action'].lower() else 's'
-                color = 'green' if 'bought' in trade['action'].lower() else 'red'
-                axes[i].scatter(trade['day'], 0.2, marker=marker, s=30, color=color, alpha=0.7)
+                action = trade['action'].lower()
+                is_buy = 'bought' in action
+                
+                # Determine item type
+                item = 'unknown'
+                for item_name in ['seed', 'fertilizer', 'grain']:
+                    if item_name in action:
+                        item = item_name
+                        break
+                
+                # Position based on buy/sell
+                y_pos = 0.3 if is_buy else 0.1
+                color = 'green' if is_buy else 'red'
+                marker = item_markers.get(item, 'o')
+                
+                axes[i].scatter(trade['day'], y_pos, marker=marker, s=40, 
+                              color=color, alpha=0.8, edgecolor='black', linewidth=0.5)
             
             axes[i].set_ylim(0, 1)
             axes[i].set_ylabel(f'{peddler}', rotation=0, ha='right', va='center')
             axes[i].set_title(f'{peddler} Travel Record (Last 100 Days)', fontsize=10, fontweight='bold')
             axes[i].grid(True, alpha=0.3)
-            axes[i].set_yticks([0.2, 0.5])
-            axes[i].set_yticklabels(['Trade', 'Move'])
+            axes[i].set_yticks([0.1, 0.3, 0.7])
+            axes[i].set_yticklabels(['Sell', 'Buy', 'Move'])
         
-        # Add legend for cities
-        legend_elements = [plt.Rectangle((0,0),1,1, facecolor=city_colors[city], alpha=0.3, label=city) for city in cities]
+        # Add legend for cities and trade types
+        legend_elements = [plt.Rectangle((0,0),1,1, facecolor=city_colors[city], alpha=0.3, label=f'{city} (background)') for city in cities if city is not None]
         legend_elements.extend([
-            plt.Line2D([0], [0], marker='o', color='w', markerfacecolor='green', markersize=8, label='Buy', linestyle='None'),
-            plt.Line2D([0], [0], marker='s', color='w', markerfacecolor='red', markersize=8, label='Sell', linestyle='None'),
+            plt.Line2D([0], [0], marker='o', color='w', markerfacecolor='green', markersize=8, label='Buy Seed', linestyle='None'),
+            plt.Line2D([0], [0], marker='s', color='w', markerfacecolor='green', markersize=8, label='Buy Fertilizer', linestyle='None'), 
+            plt.Line2D([0], [0], marker='^', color='w', markerfacecolor='green', markersize=8, label='Buy Grain', linestyle='None'),
+            plt.Line2D([0], [0], marker='o', color='w', markerfacecolor='red', markersize=8, label='Sell Seed', linestyle='None'),
+            plt.Line2D([0], [0], marker='s', color='w', markerfacecolor='red', markersize=8, label='Sell Fertilizer', linestyle='None'),
+            plt.Line2D([0], [0], marker='^', color='w', markerfacecolor='red', markersize=8, label='Sell Grain', linestyle='None'),
             plt.Line2D([0], [0], marker='>', color='w', markerfacecolor='black', markersize=8, label='Movement', linestyle='None')
         ])
         
@@ -653,6 +697,101 @@ class EconomyAnalytics:
         
         plt.tight_layout()
 
+    def chart_agent_weights(self):
+        """Chart 8: Agent decision weights over last 100 days"""
+        # Get last 100 days of data
+        if len(self.df) == 0:
+            plt.text(0.5, 0.5, 'No data available for weight analysis', ha='center', va='center')
+            plt.title('Agent Decision Weights (Last 100 Days)', fontsize=12, fontweight='bold')
+            return
+            
+        max_day = self.df['day'].max()
+        start_day = max(0, max_day - 100)
+        recent_data = self.df[self.df['day'] >= start_day]
+        
+        # Get unique agents
+        agents = recent_data['person'].unique()
+        n_agents = len(agents)
+        
+        # Create a global color map for all possible actions
+        all_possible_actions = set()
+        for _, row in recent_data.iterrows():
+            weights = row['weights']
+            if isinstance(weights, dict) and weights:
+                all_possible_actions.update(weights.keys())
+        
+        all_possible_actions = sorted(list(all_possible_actions))
+        action_colors = {}
+        colors = plt.cm.Set3(np.linspace(0, 1, len(all_possible_actions)))
+        for i, action in enumerate(all_possible_actions):
+            action_colors[action] = colors[i]
+        
+        # Create subplots for each agent
+        fig, axes = plt.subplots(n_agents, 1, figsize=(15, 3 * n_agents), sharex=True)
+        if n_agents == 1:
+            axes = [axes]
+        
+        for i, agent in enumerate(agents):
+            agent_data = recent_data[recent_data['person'] == agent].sort_values('day')
+            
+            if len(agent_data) == 0:
+                axes[i].text(0.5, 0.5, f'No data for {agent}', ha='center', va='center')
+                axes[i].set_title(f'{agent} Decision Weights', fontsize=10, fontweight='bold')
+                continue
+            
+            # Extract weights data for this agent
+            weights_by_day = {}
+            all_actions = set()
+            
+            for _, row in agent_data.iterrows():
+                day = row['day']
+                weights = row['weights']
+                if isinstance(weights, dict) and weights:
+                    weights_by_day[day] = weights
+                    all_actions.update(weights.keys())
+            
+            if not weights_by_day:
+                axes[i].text(0.5, 0.5, f'No weights data for {agent}', ha='center', va='center')
+                axes[i].set_title(f'{agent} Decision Weights', fontsize=10, fontweight='bold')
+                continue
+            
+            # Convert to consistent format
+            days = sorted(weights_by_day.keys())
+            all_actions = sorted(list(all_actions))
+            
+            # Create stacked area chart
+            weight_matrix = []
+            for day in days:
+                day_weights = weights_by_day[day]
+                total_weight = sum(day_weights.values()) if day_weights.values() else 1
+                # Normalize weights to percentages
+                normalized_weights = []
+                for action in all_actions:
+                    weight = day_weights.get(action, 0)
+                    normalized_weights.append(weight / total_weight * 100 if total_weight > 0 else 0)
+                weight_matrix.append(normalized_weights)
+            
+            # Transpose for plotting
+            weight_matrix = np.array(weight_matrix).T
+            
+            # Create stacked area plot
+            bottom = np.zeros(len(days))
+            
+            for j, action in enumerate(all_actions):
+                axes[i].fill_between(days, bottom, bottom + weight_matrix[j], 
+                                   alpha=0.7, label=action, color=action_colors[action])
+                bottom += weight_matrix[j]
+            
+            axes[i].set_ylabel('Weight %')
+            axes[i].set_title(f'{agent} Decision Weights (Last 100 Days)', fontsize=10, fontweight='bold')
+            axes[i].legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=8)
+            axes[i].grid(True, alpha=0.3)
+            axes[i].set_ylim(0, 100)
+        
+        axes[-1].set_xlabel('Day')
+        plt.suptitle('Agent Decision Weight Evolution', fontsize=14, fontweight='bold', y=0.995)
+        plt.subplots_adjust(right=0.8, hspace=0.3)
+
 
 def main():
     """Main function to analyze economy_log.json and generate charts"""
@@ -688,6 +827,7 @@ def main():
         print("  05_peddler_travel.png - Peddler Travel Record (Last 100 Days)")
         print("  06_market_efficiency.png - Price Spreads (Market Inefficiency)")
         print("  07_supply_demand.png - Grain Supply vs Demand Balance")
+        print("  08_agent_weights.png - Agent Decision Weights (Last 100 Days)")
         
     except Exception as e:
         print(f"Error analyzing log file: {e}")
