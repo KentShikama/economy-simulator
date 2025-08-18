@@ -1,4 +1,4 @@
-from agents import SeedCollector, FertilizerCreator, Farmer, Peddler, ActionResult
+from agents import SeedCollector, FertilizerCreator, Farmer, SeedPeddler, FertilizerPeddler, GrainPeddler, ActionResult
 from grid import Grid, GRID_WIDTH, GRID_HEIGHT
 import json
 from datetime import datetime
@@ -12,13 +12,14 @@ class EconomySimulator:
         # City of Seeds: Seed Collectors
         # City of Mulch: Fertilizer Creators  
         # City of Harvest: Farmers
-        # Peddlers: Travel between cities
+        # Specialized Peddlers: Each trades specific goods
         self.people = [
             SeedCollector(name="Harvester Harry", city="Seeds", money=1000),
             FertilizerCreator(name="Composter Carl", city="Mulch", money=1000),
             Farmer(name="Farmer Frank", city="Harvest", money=1000),
-            Peddler(name="Peddler Pete", city="Seeds", money=1000),
-            Peddler(name="Peddler Penny", city="Mulch", money=1000),
+            SeedPeddler(name="Seed Trader Sam", city="Seeds", money=1000),
+            FertilizerPeddler(name="Fertilizer Trader Faye", city="Mulch", money=1000),
+            GrainPeddler(name="Grain Trader Gary", city="Harvest", money=1000),
         ]
 
         # Place people in their starting cities (center of each city)
@@ -92,7 +93,7 @@ class EconomySimulator:
 
             result = None
             # Peddlers pass the grid for movement
-            if isinstance(person, Peddler):
+            if isinstance(person, (SeedPeddler, FertilizerPeddler, GrainPeddler)):
                 result = person.act([p for p in self.people if p != person], self.grid)
             else:
                 result = person.act([p for p in self.people if p != person])
