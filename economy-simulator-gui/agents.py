@@ -9,7 +9,7 @@ from grid import Grid
 FULLNESS_ADDITION = 20
 
 # Price adjustment constants
-PRICE_ADJUSTMENT_RATE = 0.05
+PRICE_ADJUSTMENT_RATE = 0.01
 
 # Peddler inventory limit
 MAX_INVENTORY_PEDDLER = 100
@@ -24,8 +24,8 @@ GRAIN_YIELD = 10
 SURVIVAL_RESERVE = 100
 
 # Production amounts for collectors/creators
-SEED_COLLECTION_AMOUNT = 10
-FERTILIZER_PRODUCTION_AMOUNT = 10
+SEED_COLLECTION_AMOUNT = 1
+FERTILIZER_PRODUCTION_AMOUNT = 1
 
 
 class ActionType(Enum):
@@ -131,15 +131,6 @@ class Person:
                 other_person.prices[item] *= (1 - PRICE_ADJUSTMENT_RATE)
             elif action_type == ActionType.SELL_REFUSED:
                 self.prices[item] *= (1 - PRICE_ADJUSTMENT_RATE)
-            elif action_type in [ActionType.PRODUCE, ActionType.COLLECT]:
-                self.prices[item] *= (1 - PRICE_ADJUSTMENT_RATE)
-            elif action_type == ActionType.GROW:
-                self.prices[item] *= (1 - PRICE_ADJUSTMENT_RATE)
-                self.prices['seed'] *= (1 + PRICE_ADJUSTMENT_RATE)
-                self.prices['fertilizer'] *= (1 + PRICE_ADJUSTMENT_RATE)
-
-        if self.fullness < 70:
-            self.prices['grain'] *= (1 + PRICE_ADJUSTMENT_RATE)
 
     def buy(self, item, other_people: List['Person']):
         # People can trade if they're in the same city (including None for traveling)
@@ -246,13 +237,15 @@ class SeedCollector(Person):
                 if self.inventory["grain"] > 0:
                     weights[i] = max(0, 80 - self.fullness, 9999 if self.fullness < 50 else 0)
             elif action == "buy_grain":
-                other_people_in_city_with_grain = [person for person in other_people_in_city if person.inventory["grain"] >= TRADE_UNIT_SIZE]
+                other_people_in_city_with_grain = [person for person in other_people_in_city if
+                                                   person.inventory["grain"] >= TRADE_UNIT_SIZE]
                 if other_people_in_city_with_grain:
                     seller = min(other_people_in_city_with_grain, key=lambda x: x.prices["grain"])
                     can_afford = self.money >= seller.prices["grain"] * TRADE_UNIT_SIZE
-                    is_not_full = self.fullness < 100
-                    if can_afford and is_not_full:
-                        weights[i] = (100 - self.fullness)
+                    if can_afford:
+                        # Buy grain if below survival reserve
+                        grain_deficit = max(0, SURVIVAL_RESERVE - self.inventory["grain"])
+                        weights[i] = grain_deficit // TRADE_UNIT_SIZE
             elif action == "sell_seed":
                 if self.inventory["seed"] >= TRADE_UNIT_SIZE:
                     weights[i] = 1  # TODO: Think harder
@@ -297,7 +290,6 @@ class FertilizerCreator(Person):
                     seller = min(other_people_in_city_with_grain, key=lambda x: x.prices["grain"])
                     can_afford = self.money >= seller.prices["grain"] * TRADE_UNIT_SIZE
                     if can_afford:
-                        # Buy grain if below survival reserve
                         grain_deficit = max(0, SURVIVAL_RESERVE - self.inventory["grain"])
                         weights[i] = grain_deficit // TRADE_UNIT_SIZE
             elif action == "sell_fertilizer":
