@@ -531,8 +531,8 @@ class EconomyAnalytics:
     
     def chart_peddler_travel(self):
         """Chart 5: Peddler travel record for last 100 days"""
-        # Get peddlers (agents with 'Peddler' in their name)
-        peddlers = [person for person in self.df['person'].unique() if 'Peddler' in person]
+        # Get peddlers (agents with 'Peddler' or 'Trader' in their name)
+        peddlers = [person for person in self.df['person'].unique() if 'Peddler' in person or 'Trader' in person]
         
         if not peddlers:
             plt.text(0.5, 0.5, 'No peddlers found in data', ha='center', va='center')

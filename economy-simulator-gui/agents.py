@@ -31,8 +31,12 @@ FERTILIZER_PRODUCTION_AMOUNT = 1
 class ActionType(Enum):
     BUY_SUCCESS = "buy_success"
     BUY_REFUSED = "buy_refused"
+    BUY_CANT_AFFORD = "buy_cant_afford"
+    BUY_NO_SELLERS = "buy_no_sellers"
     SELL_SUCCESS = "sell_success"
     SELL_REFUSED = "sell_refused"
+    SELL_CANT_AFFORD = "sell_cant_afford"
+    SELL_NO_BUYERS = "sell_no_buyers"
     PRODUCE = "produce"
     COLLECT = "collect"
     GROW = "grow"
@@ -126,11 +130,28 @@ class Person:
                 other_person.prices[item] *= (1 + PRICE_ADJUSTMENT_RATE)
             elif action_type == ActionType.BUY_REFUSED:
                 self.prices[item] *= (1 + PRICE_ADJUSTMENT_RATE)
+                if other_person is not None:
+                    other_person.prices[item] *= (1 - PRICE_ADJUSTMENT_RATE)
+            elif action_type == ActionType.BUY_CANT_AFFORD:
+                # Buyer's price doesn't change - they have no money
+                # Seller lowers price to try to make a sale
+                if other_person is not None:
+                    other_person.prices[item] *= (1 - PRICE_ADJUSTMENT_RATE)
+            elif action_type == ActionType.BUY_NO_SELLERS:
+                pass
             elif action_type == ActionType.SELL_SUCCESS:
                 self.prices[item] *= (1 + PRICE_ADJUSTMENT_RATE)
                 other_person.prices[item] *= (1 - PRICE_ADJUSTMENT_RATE)
             elif action_type == ActionType.SELL_REFUSED:
                 self.prices[item] *= (1 - PRICE_ADJUSTMENT_RATE)
+                if other_person is not None:
+                    other_person.prices[item] *= (1 + PRICE_ADJUSTMENT_RATE)
+            elif action_type == ActionType.SELL_CANT_AFFORD:
+                # Seller lowers price when buyer can't afford
+                self.prices[item] *= (1 - PRICE_ADJUSTMENT_RATE)
+                # Buyer's price doesn't change - they have no money
+            elif action_type == ActionType.SELL_NO_BUYERS:
+                pass
 
     def buy(self, item, other_people: List['Person']):
         # People can trade if they're in the same city (including None for traveling)
@@ -151,9 +172,9 @@ class Person:
                 return ActionResult(ActionType.BUY_SUCCESS, item, message, seller)
             else:
                 message = f"{self.name} cannot afford {TRADE_UNIT_SIZE} {item}."
-                return ActionResult(ActionType.BUY_REFUSED, item, message, seller)
-        message = f"{self.name} tried to buy {TRADE_UNIT_SIZE} {item}, but insufficient stock available (need {TRADE_UNIT_SIZE}+ units)."
-        return ActionResult(ActionType.BUY_REFUSED, item, message, None)
+                return ActionResult(ActionType.BUY_CANT_AFFORD, item, message, seller)
+        message = f"{self.name} tried to buy {TRADE_UNIT_SIZE} {item}, but there are no sellers in {self.city}."
+        return ActionResult(ActionType.BUY_NO_SELLERS, item, message, None)
 
     def sell(self, item, other_people: List['Person']):
         if self.inventory[item] < TRADE_UNIT_SIZE:
@@ -178,16 +199,16 @@ class Person:
                 message = f"{self.name} sold {TRADE_UNIT_SIZE} {item} to {buyer.name} for {price}."
                 return ActionResult(ActionType.SELL_SUCCESS, item, message, buyer)
             message = f"{self.name} cannot sell {TRADE_UNIT_SIZE} {item} because no one can afford it."
-            return ActionResult(ActionType.SELL_REFUSED, item, message, buyer)
+            return ActionResult(ActionType.SELL_CANT_AFFORD, item, message, buyer)
         message = f"{self.name} tried to sell {TRADE_UNIT_SIZE} {item}, but there are no buyers in {self.city}."
-        return ActionResult(ActionType.SELL_REFUSED, item, message, None)
+        return ActionResult(ActionType.SELL_NO_BUYERS, item, message, None)
 
     def can_sell_profitably(self, item, other_people_in_city):
         """Check if we can sell an item profitably in current city"""
         if self.inventory[item] >= TRADE_UNIT_SIZE and other_people_in_city:
             buyer = max(other_people_in_city, key=lambda x: x.prices[item])
-            profit_margin = (buyer.prices[item] - self.prices[item]) * TRADE_UNIT_SIZE
-            return profit_margin > 0
+            # Can sell profitably if buyer's price is above our own price
+            return buyer.prices[item] > self.prices[item]
         return False
     
     def can_buy_profitably(self, item, other_people_in_city):
@@ -196,8 +217,8 @@ class Person:
         if sellers:
             seller = min(sellers, key=lambda x: x.prices[item])
             if self.money >= seller.prices[item] * TRADE_UNIT_SIZE:
-                profit_margin = (self.prices[item] - seller.prices[item]) * TRADE_UNIT_SIZE
-                return profit_margin > 0
+                # Can buy profitably if seller's price is below our own price
+                return seller.prices[item] < self.prices[item]
         return False
     
     def calculate_grain_survival_weight(self, other_people_in_city):
@@ -497,6 +518,10 @@ class GrainPeddler(Person):
             return 1
         return 0
     
+    def get_sellable_grain_units(self):
+        """Calculate how many grain units can be sold while maintaining survival reserve"""
+        return max(0, (self.inventory["grain"] - SURVIVAL_RESERVE) // TRADE_UNIT_SIZE)
+    
     def act(self, other_people: List['Person'], grid: Grid):
         # Can move to all cities but only trades grain
         actions = ['move_to_Seeds', 'move_to_Mulch', 'move_to_Harvest', 'buy_grain', 'sell_grain', 'consume_grain']
@@ -507,7 +532,9 @@ class GrainPeddler(Person):
         except ValueError:
             action = 'do_nothing'
         
-        if 'move_to_' in action:
+        if action == 'do_nothing':
+            return f"{self.name} did nothing at {self.city if self.city else 'traveling'}"
+        elif 'move_to_' in action:
             destination_city = action.split('_')[-1]
             return self.move_toward_target(grid, destination_city)
         elif 'buy' in action:
@@ -535,7 +562,7 @@ class GrainPeddler(Person):
             elif action == 'sell_grain' and self.city is not None:
                 if self.can_sell_profitably('grain', other_people_in_city):
                     # Only sell if we have more than survival reserve
-                    sellable_units = max(0, (self.inventory["grain"] - SURVIVAL_RESERVE) // TRADE_UNIT_SIZE)
+                    sellable_units = self.get_sellable_grain_units()
                     weights[i] = sellable_units
             elif 'move_to_' in action:
                 destination_city = action.split('_')[-1]
@@ -549,7 +576,7 @@ class GrainPeddler(Person):
                     if people_in_dest:
                         # Check if we can buy or sell profitably there
                         can_buy_prof = self.can_buy_profitably('grain', people_in_dest)
-                        can_sell_prof = self.can_sell_profitably('grain', people_in_dest)
+                        can_sell_prof = self.can_sell_profitably('grain', people_in_dest) and self.get_sellable_grain_units() > 0
                         if can_buy_prof or can_sell_prof:
                             weights[i] = 1
         return weights
