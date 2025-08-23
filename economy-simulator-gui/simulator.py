@@ -14,13 +14,29 @@ class EconomySimulator:
         # City of Harvest: Farmers
         # Specialized Peddlers: Each trades specific goods
         self.people = [
-            SeedCollector(name="Harvester Harry", city="Seeds", money=1000),
-            FertilizerCreator(name="Composter Carl", city="Mulch", money=1000),
-            Farmer(name="Farmer Frank", city="Harvest", money=1000),
-            SeedPeddler(name="Seed Trader Sam", city="Seeds", money=1000),
-            FertilizerPeddler(name="Fertilizer Trader Faye", city="Mulch", money=1000),
-            GrainPeddler(name="Grain Trader Gary", city="Harvest", money=1000),
+            SeedCollector(name="Harvester Harry", city="Seeds", money=10000),
+            FertilizerCreator(name="Composter Carl", city="Mulch", money=10000),
+            Farmer(name="Farmer Frank", city="Harvest", money=10000),
+            SeedPeddler(name="Seed Trader Sam", city="Seeds", money=10000),
+            FertilizerPeddler(name="Fertilizer Trader Faye", city="Mulch", money=10000),
+            GrainPeddler(name="Grain Trader Gary", city="Harvest", money=10000),
         ]
+
+        # Set peddler prices so they only trade their specialty items
+        # Low prices = won't buy (not profitable), normal/high prices = will buy/sell
+        for person in self.people:
+            if isinstance(person, SeedPeddler):
+                # Sam only trades seeds, won't buy fertilizer
+                person.prices['fertilizer'] = 1  # Won't buy fertilizer
+                person.prices['grain'] = 10  # Normal price for grain (survival need)
+            elif isinstance(person, FertilizerPeddler):
+                # Faye only trades fertilizer, won't buy seeds
+                person.prices['seed'] = 1  # Won't buy seeds
+                person.prices['grain'] = 10  # Normal price for grain (survival need)
+            elif isinstance(person, GrainPeddler):
+                # Gary only trades grain, won't buy seeds or fertilizer
+                person.prices['seed'] = 1  # Won't buy seeds
+                person.prices['fertilizer'] = 1  # Won't buy fertilizer
 
         # Place people in their starting cities (center of each city)
         for person in self.people:

@@ -9,7 +9,7 @@ from grid import Grid
 FULLNESS_ADDITION = 20
 
 # Price adjustment constants
-PRICE_ADJUSTMENT_RATE = 0.01
+PRICE_ADJUSTMENT_RATE = 0.001
 
 # Peddler inventory limit
 MAX_INVENTORY_PEDDLER = 100
@@ -58,7 +58,7 @@ class Person:
     grid_x: int = 0
     grid_y: int = 0
     fullness: int = 100
-    inventory: Dict[str, int] = field(default_factory=lambda: {'seed': 0, 'fertilizer': 0, 'grain': 50})
+    inventory: Dict[str, int] = field(default_factory=lambda: {'seed': 0, 'fertilizer': 0, 'grain': 200})
     prices: Dict[str, float] = field(default_factory=lambda: {'seed': 10, 'fertilizer': 10, 'grain': 10})
     latest_weights: Dict[str, float] = field(default_factory=dict)
     target_city: Optional[str] = None
@@ -126,50 +126,65 @@ class Person:
             other_person = action_result.other_person
 
             if action_type == ActionType.BUY_SUCCESS:
-                self.prices[item] *= (1 - PRICE_ADJUSTMENT_RATE)
-                other_person.prices[item] *= (1 + PRICE_ADJUSTMENT_RATE)
+                self.prices[item] *= (1 - PRICE_ADJUSTMENT_RATE * TRADE_UNIT_SIZE)
+                other_person.prices[item] *= (1 + PRICE_ADJUSTMENT_RATE * TRADE_UNIT_SIZE)
             elif action_type == ActionType.BUY_REFUSED:
-                self.prices[item] *= (1 + PRICE_ADJUSTMENT_RATE)
+                self.prices[item] *= (1 + PRICE_ADJUSTMENT_RATE * TRADE_UNIT_SIZE)
                 if other_person is not None:
-                    other_person.prices[item] *= (1 - PRICE_ADJUSTMENT_RATE)
+                    other_person.prices[item] *= (1 - PRICE_ADJUSTMENT_RATE * TRADE_UNIT_SIZE)
             elif action_type == ActionType.BUY_CANT_AFFORD:
                 # Buyer's price doesn't change - they have no money
                 # Seller lowers price to try to make a sale
                 if other_person is not None:
-                    other_person.prices[item] *= (1 - PRICE_ADJUSTMENT_RATE)
+                    other_person.prices[item] *= (1 - PRICE_ADJUSTMENT_RATE * TRADE_UNIT_SIZE)
             elif action_type == ActionType.BUY_NO_SELLERS:
                 pass
             elif action_type == ActionType.SELL_SUCCESS:
-                self.prices[item] *= (1 + PRICE_ADJUSTMENT_RATE)
-                other_person.prices[item] *= (1 - PRICE_ADJUSTMENT_RATE)
+                self.prices[item] *= (1 + PRICE_ADJUSTMENT_RATE * TRADE_UNIT_SIZE)
+                other_person.prices[item] *= (1 - PRICE_ADJUSTMENT_RATE * TRADE_UNIT_SIZE)
             elif action_type == ActionType.SELL_REFUSED:
-                self.prices[item] *= (1 - PRICE_ADJUSTMENT_RATE)
+                self.prices[item] *= (1 - PRICE_ADJUSTMENT_RATE * TRADE_UNIT_SIZE)
                 if other_person is not None:
-                    other_person.prices[item] *= (1 + PRICE_ADJUSTMENT_RATE)
+                    other_person.prices[item] *= (1 + PRICE_ADJUSTMENT_RATE * TRADE_UNIT_SIZE)
             elif action_type == ActionType.SELL_CANT_AFFORD:
                 # Seller lowers price when buyer can't afford
-                self.prices[item] *= (1 - PRICE_ADJUSTMENT_RATE)
+                self.prices[item] *= (1 - PRICE_ADJUSTMENT_RATE * TRADE_UNIT_SIZE)
                 # Buyer's price doesn't change - they have no money
             elif action_type == ActionType.SELL_NO_BUYERS:
                 pass
+            elif action_type == ActionType.PRODUCE:
+                self.prices["fertilizer"] *= (1 - PRICE_ADJUSTMENT_RATE)
+            elif action_type == ActionType.COLLECT:
+                self.prices["seed"] *= (1 - PRICE_ADJUSTMENT_RATE)
+            elif action_type == ActionType.GROW:
+                self.prices["grain"] *= (1 - PRICE_ADJUSTMENT_RATE)
+                self.prices["seed"] *= (1 + PRICE_ADJUSTMENT_RATE)
+                self.prices["fertilizer"] *= (1 + PRICE_ADJUSTMENT_RATE)
 
     def buy(self, item, other_people: List['Person']):
         # People can trade if they're in the same city (including None for traveling)
         sellers = [person for person in other_people if
                    person.inventory[item] >= TRADE_UNIT_SIZE and person.city == self.city and self.city is not None]
         if sellers:
-            seller = min(sellers, key=lambda x: x.prices[item])
-            price = seller.prices[item] * TRADE_UNIT_SIZE
-            if seller.prices[item] > self.prices[item]:
-                message = f"{self.name} refuses to buy {TRADE_UNIT_SIZE} {item} from {seller.name} because the price is too high."
-                return ActionResult(ActionType.BUY_REFUSED, item, message, seller)
-            elif self.money >= price:
+            # Filter to sellers whose price we're willing to pay and we can afford
+            valid_sellers = [s for s in sellers if s.prices[item] <= self.prices[item] and self.money >= s.prices[item] * TRADE_UNIT_SIZE]
+            
+            if valid_sellers:
+                # Among valid sellers, pick the one with the lowest price
+                seller = min(valid_sellers, key=lambda x: x.prices[item])
+                price = seller.prices[item] * TRADE_UNIT_SIZE
                 self.money -= price
                 seller.money += price
                 self.inventory[item] += TRADE_UNIT_SIZE
                 seller.inventory[item] -= TRADE_UNIT_SIZE
                 message = f"{self.name} bought {TRADE_UNIT_SIZE} {item} from {seller.name} for {price}."
                 return ActionResult(ActionType.BUY_SUCCESS, item, message, seller)
+            
+            # No valid sellers - check why
+            seller = min(sellers, key=lambda x: x.prices[item])
+            if seller.prices[item] > self.prices[item]:
+                message = f"{self.name} refuses to buy {TRADE_UNIT_SIZE} {item} from {seller.name} because the price is too high."
+                return ActionResult(ActionType.BUY_REFUSED, item, message, seller)
             else:
                 message = f"{self.name} cannot afford {TRADE_UNIT_SIZE} {item}."
                 return ActionResult(ActionType.BUY_CANT_AFFORD, item, message, seller)
@@ -186,20 +201,28 @@ class Person:
 
         buyers = [person for person in other_people if person.city == self.city]
         if buyers:
-            buyer = max(buyers, key=lambda x: x.prices[item])
             price = self.prices[item] * TRADE_UNIT_SIZE
-            if buyer.prices[item] < self.prices[item]:
-                message = f"{self.name} refuses to sell {TRADE_UNIT_SIZE} {item} to {buyer.name} because the price is too low."
-                return ActionResult(ActionType.SELL_REFUSED, item, message, buyer)
-            if buyer.money >= price:
+            # Filter to buyers who are willing to pay at least our price and can afford it
+            valid_buyers = [b for b in buyers if b.prices[item] >= self.prices[item] and b.money >= price]
+            
+            if valid_buyers:
+                # Among valid buyers, pick the one offering the highest price
+                buyer = max(valid_buyers, key=lambda x: x.prices[item])
                 self.money += price
                 buyer.money -= price
                 self.inventory[item] -= TRADE_UNIT_SIZE
                 buyer.inventory[item] += TRADE_UNIT_SIZE
                 message = f"{self.name} sold {TRADE_UNIT_SIZE} {item} to {buyer.name} for {price}."
                 return ActionResult(ActionType.SELL_SUCCESS, item, message, buyer)
-            message = f"{self.name} cannot sell {TRADE_UNIT_SIZE} {item} because no one can afford it."
-            return ActionResult(ActionType.SELL_CANT_AFFORD, item, message, buyer)
+            
+            # No valid buyers - check why
+            buyer = max(buyers, key=lambda x: x.prices[item])
+            if buyer.prices[item] < self.prices[item]:
+                message = f"{self.name} refuses to sell {TRADE_UNIT_SIZE} {item} to {buyer.name} because the price is too low."
+                return ActionResult(ActionType.SELL_REFUSED, item, message, buyer)
+            else:
+                message = f"{self.name} cannot sell {TRADE_UNIT_SIZE} {item} because {buyer.name} cannot afford it (buyer has ${buyer.money:.2f}, needs ${price:.2f})."
+                return ActionResult(ActionType.SELL_CANT_AFFORD, item, message, buyer)
         message = f"{self.name} tried to sell {TRADE_UNIT_SIZE} {item}, but there are no buyers in {self.city}."
         return ActionResult(ActionType.SELL_NO_BUYERS, item, message, None)
 
@@ -225,11 +248,8 @@ class Person:
         """Calculate weight for buying grain based on survival needs"""
         sellers_with_grain = [p for p in other_people_in_city if p.inventory["grain"] >= TRADE_UNIT_SIZE]
         if sellers_with_grain:
-            seller = min(sellers_with_grain, key=lambda x: x.prices["grain"])
-            can_afford = self.money >= seller.prices["grain"] * TRADE_UNIT_SIZE
-            if can_afford:
-                grain_deficit = max(0, SURVIVAL_RESERVE - self.inventory["grain"])
-                return grain_deficit // TRADE_UNIT_SIZE
+            grain_deficit = max(0, SURVIVAL_RESERVE - self.inventory["grain"])
+            return grain_deficit // TRADE_UNIT_SIZE
         return 0
 
 

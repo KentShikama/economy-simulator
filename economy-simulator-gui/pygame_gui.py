@@ -31,8 +31,12 @@ PATH_COLOR = (220, 220, 220)  # Light gray for paths
 TYPE_COLORS = {
     'WaterCollector': BLUE,
     'FertilizerCreator': BROWN,
+    'SeedCollector': ORANGE,
     'Farmer': GREEN,
-    'Peddler': RED
+    'Peddler': RED,
+    'FertilizerPeddler': BROWN,  # Same as FertilizerCreator
+    'GrainPeddler': GREEN,  # Same as Farmer
+    'SeedPeddler': ORANGE  # Same as SeedCollector
 }
 
 
