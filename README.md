@@ -3,6 +3,10 @@
 ## Description
 Simulates an economy of three cities with a total of five people. The economy consists of two raw materials (water and fertilizer) and one consumable good (apples). One person produces the water in city A, another person produces the fertilizer in city B, and a third person combines the water and the fertilizer to produce apples in city C. The two remaining people are peddlers that transport the goods between the cities. On each day, each person has a chance of performing one action depending on their role.
 
+## Screenshot
+
+![screenshot](screenshots/646k_run.png)
+
 ## How to run
 
 ### Text only version
